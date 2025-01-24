@@ -8,6 +8,9 @@
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files\
+from ssl import Options
+
+
 Ingested_pairs_list_for_coregistration = r"E:\SAR_TSA_tests\RB2010_FQ22\1_Scenes_Import\RB2010_03_Ingested_pairs_list_for_coregistration.txt"
 output_folder = r"E:\SAR_TSA_tests\RB2010_FQ22"
 prefix = "RB2010_"
@@ -26,6 +29,9 @@ dep_output_label = ["HH", "HV", "VH", "VV"]
 number_of_GCPs = 1000
 minimum_correlation_score = 0.72
 search_radius_pixels = 150
+
+# C) Other Options
+generate_overviews = "yes"    # Valid optiopns are "yes" or "no"
 
 # -----------------------------------------------------------------------------------------------------
 #  Scripts -  Notes.
@@ -124,6 +130,11 @@ if len(dep_output_channels) != len (dep_output_label):
 Fld_Coregistration = os.path.join(output_folder, "2_Coregistered_Scenes")
 if not os.path.exists(Fld_Coregistration):
     os.makedirs(Fld_Coregistration)
+
+
+#5) Other options
+if generate_overviews in yes_validation_list: 
+    generate_overviews = True
 
 start = time.time()
 
@@ -330,7 +341,7 @@ if perform_coregistration is True:
                      dbic_dep=dbic_dep, dbic=dbic, numpts=numpts,
                      minscore=minscore, searchr=searchr, filo=filo)
 
-            if generate_overviews in yes_validation_list:
+            if generate_overviews is True:
                 pyramid(file=filo, force='no', poption='aver',
                         dboc=[], olevels=[])
         except PCIException as e:
