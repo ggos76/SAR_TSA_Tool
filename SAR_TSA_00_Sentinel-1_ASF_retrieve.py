@@ -7,6 +7,11 @@
 # ----------------------------------------------------------------------------------------------
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
+# This edits is only to check if I can commit a change in GITHUB
+#
+#
+#
+
 # A) search_method options are "aoi"or "point"  (should in be in LatLong wgs84)/
 search_method = "aoi"
 AOI_vector_file = r"D:\Wapusk_2010\Roberge_lake\AOI_Roberge_Lake_UTM15_D000.pix"
