@@ -10,7 +10,7 @@
 # This edits is only to check if I can commit a change in GITHUB
 #
 #
-#
+# end of commit
 
 # A) search_method options are "aoi"or "point"  (should in be in LatLong wgs84)/
 search_method = "aoi"
