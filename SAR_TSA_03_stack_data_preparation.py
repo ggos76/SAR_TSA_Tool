@@ -8,29 +8,29 @@
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input/Output
-Coregistered_Pairs_Report = r"E:\SAR_TSA_tests\RB2010_FQ22\2_Coregistered_Scenes\RB2010_04_Coregistered_Pairs_Report.txt"
-output_folder = r"E:\SAR_TSA_tests\RB2010_FQ22"
-prefix = "RB2010_"
+Coregistered_Pairs_Report = r"E:\RCMP_out\p033_f142\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
+output_folder = r"E:\RCMP_out\p033_f142"
+prefix = ""
 
 # B) Elevation source
-DEM_file = r"D:\HBL_S1A_mapping\sHBL_GLO30DEM_LongLat_D000_with_0_elev.pix"
+DEM_file = r"D:\RCMP_border\DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 # C)  The channels to process for the time series (TSA) generation, can be a subset of the coregistered files channels
 # C.1) These parameters must be common to all scenes to be processed. The TSA_channel_mapping list must include all
-#       channels of the input file and not only the channels to be processed.
-TSA_channel_mapping = [1,2,3,4]
-TSA_channel_labels = ["HH", "HV", "VH", "VV"]
+#      channels of the input file and not only the channels to be processed.
+TSA_channel_mapping = [1,2]
+TSA_channel_labels = ["HH", "HV"]
 
 # C.1) Coherence  options
 produce_coherence_layers = "yes"    # Only available for SLC data
-TSA_coherence_layers = [1, 4]      # Must be all subset of TSA_channel_mapping
+TSA_coherence_layers = [1]      # Must be all subset of TSA_channel_mapping
 apply_insraw_filter = "yes"
 filter_size = 9
 
 # C.2) Intensity options
 produce_intensity_layers = "yes"
-TSA_intensity_layers = [1, 2, 4]    # Must be all subset of TSA_channel_mapping
+TSA_intensity_layers = [1, 2]    # Must be all subset of TSA_channel_mapping
 
 # C.3) Other intensity layers
 produce_incidence_angle_layer = "yes"
@@ -42,11 +42,11 @@ TSA_math_labels = ["HH/VV", "HH/VV"]
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
 ortho_bounds_option = 1
-AOI_vector_file = r"D:\Wapusk_2010\Roberge_lake\AOI_Roberge_Lake_UTM15_D000.pix"
+AOI_vector_file = r"D:\RCMP_border\S1A\p033_f142\AOI_ingest_p33_f142_UTM18-T_D000.pix"
 AOI_segment_number = 2
 
-ortho_resolution_X = "7"
-ortho_resolution_Y = "7"
+ortho_resolution_X = "8"
+ortho_resolution_Y = "8"
 
 # E) General options
 # Generate overviews - either yes or no,
@@ -181,9 +181,12 @@ for ii in check_scenes_list:
     print ("Checking input scene conformity--->" + ii)
     with ds.open_dataset(ii, ds.eAM_READ) as ds2:
         aux = ds2.aux_data
-        dataType = aux.get_file_metadata_value("dataType")
+        Matrix_Type = aux.get_file_metadata_value("Matrix_Type")
         SensorModelName = aux.get_file_metadata_value("SensorModelName")
         num_channels = ds2.chan_count
+
+
+        print (Matrix_Type)
 
         # check size here!
         # zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
@@ -193,7 +196,8 @@ for ii in check_scenes_list:
             sys.exit()
 
         if produce_coherence_layers is True:
-            if dataType != "Complex":
+            if Matrix_Type not in ["s1c", "s2c", "s4c"]:
+
                 print("Error 20 - The input scene channels must be complex when the coherence layer option is selected")
                 sys.exit()
             for in_chan in TSA_coherence_layers:
