@@ -12,26 +12,28 @@ https://cupy.dev/
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
-input_stack_statistics_file = r"J:\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VH_int_stack_statistics.txt"
-optional_basenae = ""        
+input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_int_stack_statistics.txt"
+prefix = ""                                # optionnal, leave blank for no prefix
 no_data_value = -32768.0000
 
-#B) Time series preparation and data stacking
-stacking_method = "numpy"               # Valid option are "numpy or "catalyst"
-apply_mean_filter = "yes"               # Valid option are "yes" or "no"
-filter_size_X_Y = [5,5]                 # Use [0,0] for no filtering
+#B.1) Time series preparation and data stacking
+stacking_method = "catalyst"          # Valid option are "numpy or "catalyst"
+output_type = 3                       # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
-# B.2) Apply an exclusion or an inclusion mask
-apply_masking = "no"       # Valid option are "yes" or "no"
-mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
-mask_file = r"E:\TSA_test2\LSTP_clip_layer2.pix"
+
+# B.2) Filtering and mask options
+apply_masking = "yes"       # Valid option are "yes" or "no"
+mask_type = "inclusion"    # Valid option are "inclusion" or "exclusion"
+mask_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\TSA_OTT_mask_UTM18T_D000.pix"
 mask_seg_number = [2]
+apply_mean_filter = "yes"               # Valid option are "yes" or "no"
+filter_size_X_Y = [5,5]                # Tuple of odd integer
 
 # B.3) Apply  Min / Max bounds
 apply_min_max_bounds = "yes"
 min_floor = 0
 max_floor = 1
-reassign_type = "to_no_data"            # Options are "to_no_data" or "to_min_max"
+reassign_type = "to_min_max"            # Options are "to_no_data" or "to_min_max"
 
 
 #C) Other options
@@ -71,6 +73,7 @@ from pathlib import Path
 
 import pci
 from pci.pcimod import pcimod
+from pci.fexport import fexport
 from pci.fav import fav
 from pci.iii import iii
 from pci.pyramid import pyramid
@@ -121,10 +124,13 @@ if not os.path.exists(input_stack_statistics_file):
 check_type = os.path.basename (input_stack_statistics_file)
 
 if "int_stack_statistics" in check_type: 
-    input_type = "int"
+    from pci.pssartsa import pssartsa
+    data_type_int = True
+    data_type_coh = False
     print ("The input layers type to stack is Intensity (int)")
 elif "coh_stack_statistics" in check_type:    
-    input_type = "coh"
+    data_type_int = False
+    data_type_coh = True
     print ("The input layers type to stack is Coherence (coh)")
 else: 
     print ("Error - The input file must be a stack_statistics file  (*_stack_statistics.txt)")
@@ -133,7 +139,7 @@ else:
 
 #B) Time series preparation
 
-#B.1) stacking_method
+#B.1A) stacking_method
 stacking_method = stacking_method.lower()
 if stacking_method not in ["numpy", "catalyst"]: 
     print ('Error - the staking_method options are "numpy" or "catalyst"')
@@ -146,6 +152,11 @@ elif  stacking_method == "catalyst":
     use_catalyst = True
 else:
     print ('Error - Undefine error')
+    sys.exit()
+
+#B.1B) Output type
+if output_type not in [1,2,3]: 
+    print ("Error - the output type must ne 1, 2 or 3")
     sys.exit()
 
 # B.2) Mean filter
@@ -214,16 +225,25 @@ base = os.path.basename(input_stack_statistics_file)
 base_out = base[:-20]
 print (base_out)
 
-outfile_tsa_data = (prefix + base_out + "TSA_data_stack.pix")
-outfile_tsa_analysis = (prefix + base_out + "TSA_data_analysis.pix")
 
-s
-
+if output_type == 1:       # analysis layers only
+    outfile_tsa_analysis = os.path.join(output_folder, (prefix + base_out + "TSA_stack_analysis"))
+    check_out = outfile_tsa_analysis
+elif output_type == 2:     # 2 analysis and stack together
+    outfile_tsa_analysis_stack = os.path.join (output_folder, (prefix + base_out + "TSA_stack_analysis_data"))
+    check_out = outfile_tsa_analysis_stack
+elif output_type == 3:     # analysis and stack separate
+    outfile_tsa_data = os.path.join(output_folder, (prefix + base_out + "TSA_stack_data"))
+    outfile_tsa_analysis = os.path.join (output_folder, (prefix + base_out + "TSA_stack_analysis"))
+    check_out = outfile_tsa_data
+else: 
+    ("Error - The output_type is not set properly") # not suppose to get there. 
+    sys.exit()
 
 #Check if the specified output file already exists. If yes error.
-if os.path.exists(outfile_tsa_data):
+if os.path.exists(check_out):
     print("Warning - the output file already exists")
-    print("Output_file-->" + outfile_tsa_data )
+    print("Output_file-->" + check_out )
     print("Delete the existing file or specify a different name")
     sys.exit()
 
@@ -232,9 +252,6 @@ if os.path.exists(outfile_tsa_analysis):
     print("Output_file-->" + outfile_tsa_analysis)
     print("Delete the existing file or specify a different name")
     sys.exit()
-
- sys.exit()
-
 
 
 # -----------------------------------------------------------------------------------------------------------------
@@ -245,9 +262,9 @@ if os.path.exists(outfile_tsa_analysis):
 start = time.time()
 
 print("\t")
-print("---------------------------------------------------------------------------------------------------")
-print("                            Reading and parsing the input_stack_statistics_file                              ")
-print("---------------------------------------------------------------------------------------------------")
+print("---------------------------------------------------------------------------------------------------------")
+print("                             Reading and parsing the input_stack_statistics_file                         ")
+print("---------------------------------------------------------------------------------------------------------")
 print("\t")
 
 Input_file_lines = []
@@ -261,7 +278,6 @@ ref_date_list = []
 dep_date_list = []
 
 for ii in Input_file_lines:
-    # temp = []
     temp = ii.split(';')
     input_file_list.append(temp[0])
     mid_date_list.append(temp[1])
@@ -282,7 +298,6 @@ print("   File -----> acquisition date")
 count = 1
 for ii, jj in zip(input_file_list, mid_date_list):
     print ("   file " + str(count) + "|" + nb_files + " " + ii + " -----> " + jj)
-
     count = count + 1
 
 # -----------------------------------------------------------------------------------------------------------------
@@ -299,18 +314,22 @@ files_list = input_file_list
 file_size_check (files_list)
 
 # -----------------------------------------------------------------------------------------------------------------
-#                                              Stacking the data layers
+#                                             Creating the Data stack  
 # -----------------------------------------------------------------------------------------------------------------
+
+
 
 print("\t")
 print ('----------------------------------------------------------------------------------------------------------')
-print("                                    Stacking the data layers                                               ")
+print("                                    Creating the Data stack                                                ")
 print ('----------------------------------------------------------------------------------------------------------')
+print("\t")
 
-
+#------------------------------------------------------------------------------------------------------------------------
+# SOLUTION USING NUMPY
 if use_numpy is True: 
 
-
+    print(time.strftime("%H:%M:%S") + " Selected stacking method is NUMPY")
     # here we assume the list to be in the chronological order since it was created by TSA_02
     print("\t")
     print(time.strftime("%H:%M:%S") + " Copying and moving the first file of the stack")
@@ -386,11 +405,11 @@ if use_numpy is True:
         for ii in range (1, max_chan + 1):
             print("   " + time.strftime("%H:%M:%S") + " Filtering channel " + str(count) + " of " + str(max_chan))
             file = copy_out
-            dbic = [ii]  # use elevation data
-            dboc = [ii]  # overwrite input data
+            dbic = [ii]  
+            dboc = [ii]  
             flsz = [filter_size_X_Y[0], filter_size_X_Y[1]]
-            mask = []  # process entire image
-            bgrange = []  # no background values
+            mask = []  
+            bgrange = []  
             failvalu = []  # no failure value
             bgzero = ''  # default, set background to zero
 
@@ -403,9 +422,9 @@ if use_numpy is True:
             count = count + 1
 
     # -------------------------------------------------------------------------------------------------------------
-    # Apply_masking if needed and assign to do data value.
+    # Apply_masking if needed and assign to do NoDataValue.
     #  if the mask is set with inclusion, we need to set the pixels outside the mask with No_data
-     # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
+    # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
     print("\t")
     print("\t")
     if apply_masking is True:
@@ -563,33 +582,112 @@ if use_numpy is True:
         # set the AuxiliaryData back to the dataset (ds1)
         ds1.aux_data = aux
 
+
+#------------------------------------------------------------------------------------------------------------------------
+# SOLUTION USING CATALYST
 if use_catalyst is True: 
+    print(time.strftime("%H:%M:%S") + " Selected stacking method is CATALYST")
     
-    # If intensity use PSSARTSA
-    from pci.pssartsa import pssartsa
+    # preparing the mfile
+    temp_mfile = os.path.join(output_folder, "temp_mfile_for_data_ingestion.txt")
+    mfile_input = open(temp_mfile, "w")
+    mfile_input.write('\n'.join(input_file_list))
+    mfile_input.close() 
+
+    if apply_mean_filter is True: 
+        flsz = filter_size_X_Y
+        out_filter = ("_" + str(filter_size_X_Y[0]) + "x" + str(filter_size_X_Y[0]))
+    if apply_mean_filter is False: 
+        flsz = []
+        out_filter = ""
+ 
+    mfile =  temp_mfile
+    dbic = [1]	
+    mask =	[]			 					
+    maskfile =	''		
+
+    if output_type == 1: # analysis layers only
+        print("   " + time.strftime("%H:%M:%S") + " Output type 1: analysis layers only")
+        stack =  "no"							
+        input_file =  os.path.join(output_folder, outfile_tsa_analysis + out_filter + ".pix" )
+    if output_type == 2:  # analysis and stack together
+        print("   " + time.strftime("%H:%M:%S") + " Output type 2: analysis and data stack in the same file")
+        stack =  "yes"
+        input_file =  os.path.join(output_folder, outfile_tsa_analysis_stack + out_filter + ".pix" )
+    if output_type == 3:  # analysis and stack separate
+        print("   " + time.strftime("%H:%M:%S") + " Output type 3: analysis and data stack in separate files")
+        stack =  "yes"
+        input_file =  os.path.join(output_folder, outfile_tsa_data + out_filter + ".pix" )
+    print ("   Output file: " + input_file)
+
+    filo = input_file
+
+    try:
+        pssartsa(mfile, dbic, mask, maskfile, stack, flsz, filo)
+    except PCIException as e:
+        print(e)
+    except Exception as e:
+        print(e)
+
+    if os.path.exists(temp_mfile):
+        os.remove(temp_mfile)
     
-    mfile    =  "input/*_SLC.pix"			#wildcard identifying SAR data sets
-    dbic	 = []								#select channel, default 1st channel
-    mask	 =	[]								#select mask channel (Left Blank)
-    maskfile =	''								#no maskfile specified
-    stack    =  "yes"							#append temporally ordered layers
-    flsz     =  [5,7]							#rectangular 5x7 filter size
-    filo     =  "PSSARTSA_5x7_stats.pix"	#output containing the raster layers
 
-    pssartsa(mfile, dbic, mask, maskfile, stack, flsz, filo)
-    
+    # -------------------------------------------------------------------------------------------------------------
+    # Apply_masking if needed and assign to do NoDataValue.
+    #  if the mask is set with inclusion, we need to set the pixels outside the mask with No_data
+    # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
+    print("\t")
+    if apply_min_max_bounds is True:
+        print(time.strftime("%H:%M:%S") + " Stack preparation - Apply minimum and maximum bounds")
+        input_stack = filo
+        stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
+    print("\t")
 
+    if apply_masking is True:
+        print(time.strftime("%H:%M:%S") + " Stack preparation - Applying the exclusion or inclusion vector mask")
+        input_stack = filo
+        stack_masking(input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder)
+    print("\t")
 
+    # Split the TSA data analysis and the TSA data stack
+    if output_type == 3: 
+      
+        # First we export the fourteen first layers to create the idependent data analysis file. 
+        fili =	input_file
+        filo =	os.path.join(output_folder, outfile_tsa_analysis + out_filter + ".pix" )
+        dbiw =	[]
+        dbic =	[1,-14]
+        dbib =	[]
+        dbvs =	[]
+        dblut =	[]
+        dbpct =	[]
+        ftype =	"TIF"
+        foptions = ""
 
+        try:
+            fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
+        except PCIException as e:
+            print(e)
+        except Exception as e:
+            print(e)
 
-    # if coherence use INSCOHSTATS
-
-
-
-# -------------------------------------------------------------------------------------------------------------
+        # Second we delete the same fourteen layers from the original pix file to only keep
+        # the stack data.
+        file = input_file
+        pciop = "DEL"
+        pcival =[1,-14]
+        try:
+            pcimod(file, pciop, pcival)
+        except PCIException as e:
+            print(e)
+        except Exception as e:
+            print(e)
+ 
+# ----------------------------------------------------------------------------------------------------------------
 print("\t")
-print("---------------------------------------------------------------------------------------------")
-print("---------------------------------------------------------------------------------------------")
+print ('----------------------------------------------------------------------------------------------------------')
+print ('----------------------------------------------------------------------------------------------------------')
 print(time.strftime("%H:%M:%S") + "   All process completed")
 print("\t")
 end = time.time()
@@ -601,5 +699,3 @@ ellapse_time_hours = round((ellapse_time_seconds / 3600), 2)
 print("Processing time (seconds): " + str(ellapse_time_seconds))
 print("Processing time (minutes): " + str(ellapse_time_minutes))
 print("Processing time (hours): " + str(ellapse_time_hours))
-
-
