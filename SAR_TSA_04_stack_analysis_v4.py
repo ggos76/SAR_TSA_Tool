@@ -632,7 +632,6 @@ if use_catalyst is True:
     if os.path.exists(temp_mfile):
         os.remove(temp_mfile)
     
-
     # -------------------------------------------------------------------------------------------------------------
     # Apply_masking if needed and assign to do NoDataValue.
     #  if the mask is set with inclusion, we need to set the pixels outside the mask with No_data
