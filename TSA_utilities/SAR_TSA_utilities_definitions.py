@@ -495,7 +495,6 @@ def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_chan
 
 def file_size_check (files_list):
 
-
     # Safety check, File size and projection verifications. All files must have the same number of lines and
     # columns and the same projection
 
@@ -618,8 +617,6 @@ def stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folde
 
     with ds.open_dataset(input_stack) as ds1:
         num_channels = ds1.chan_count
-        print ("   There are " + str(num_channels) + " channels in the input stack")
-
         '''
         # Could be the optimal solution with numpy, to be rewritten later
         arr = input raster channel de PCI
@@ -631,8 +628,10 @@ def stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folde
         count = 1
         for input_chan in range(1, num_channels + 1):
 
-            print(("   " + (time.strftime("%H:%M:%S")) + " Applying min/max floor to channel " + str(count) +
-                   " of " + str(num_channels)))
+            out_print = (("   " + (time.strftime("%H:%M:%S")) + " Applying min/max floor to channel " + str(count) + " of " + str(num_channels)))
+            sys.stdout.write("\r" + out_print)
+            sys.stdout.flush()
+
             output_model_file = []
 
             if reassign_type == "to_no_data":
