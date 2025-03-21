@@ -12,22 +12,22 @@ https://cupy.dev/
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
+#input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_coh_stack_statistics.txt"
 input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_int_stack_statistics.txt"
 prefix = ""                                # optionnal, leave blank for no prefix
 no_data_value = -32768.0000
 
 #B.1) Time series preparation and data stacking
-stacking_method = "catalyst"          # Valid option are "numpy or "catalyst"
-output_type = 3                       # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
-
+stacking_method = "catalyst"             # Valid option are "numpy or "catalyst"
+output_type = 2                       # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
 # B.2) Filtering and mask options
-apply_masking = "yes"       # Valid option are "yes" or "no"
-mask_type = "inclusion"    # Valid option are "inclusion" or "exclusion"
+apply_masking = "no"       # Valid option are "yes" or "no"
+mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
 mask_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\TSA_OTT_mask_UTM18T_D000.pix"
 mask_seg_number = [2]
 apply_mean_filter = "yes"               # Valid option are "yes" or "no"
-filter_size_X_Y = [5,5]                # Tuple of odd integer
+filter_size_X_Y = [3,3]                 # Tuple of odd integer
 
 # B.3) Apply  Min / Max bounds
 apply_min_max_bounds = "yes"
@@ -58,7 +58,6 @@ delete_intermediary_files = "no"
    
     The two stackling methond will give the same results. 
    
-  
 '''
 
 # -----------------------------------------------------------------------------------------------------------------
@@ -124,7 +123,6 @@ if not os.path.exists(input_stack_statistics_file):
 check_type = os.path.basename (input_stack_statistics_file)
 
 if "int_stack_statistics" in check_type: 
-    from pci.pssartsa import pssartsa
     data_type_int = True
     data_type_coh = False
     print ("The input layers type to stack is Intensity (int)")
@@ -138,7 +136,6 @@ else:
 
 
 #B) Time series preparation
-
 #B.1A) stacking_method
 stacking_method = stacking_method.lower()
 if stacking_method not in ["numpy", "catalyst"]: 
@@ -148,6 +145,7 @@ elif  stacking_method == "numpy":
     use_numpy = True
     use_catalyst = False
 elif  stacking_method == "catalyst":
+    from pci.pssartsa import pssartsa
     use_numpy = False
     use_catalyst = True
 else:
@@ -159,6 +157,7 @@ if output_type not in [1,2,3]:
     print ("Error - the output type must ne 1, 2 or 3")
     sys.exit()
 
+
 # B.2) Mean filter
 if apply_mean_filter.lower() in yes_validation_list:
     apply_mean_filter = True
@@ -168,8 +167,11 @@ if apply_mean_filter.lower() in yes_validation_list:
     if Fsize_X_modulo != 1 or Fsize_Y_modulo!= 1 :
         print ("Error - The filter_size_X_Y must only be compose of odd integers ")
         sys.exit()
+
+    out_filter = ("_" + str(filter_size_X_Y[0]) + "x" + str(filter_size_X_Y[0]))
 else:
     apply_mean_filter = False
+    out_filter = ""
 
 # B.3) Apply an exclusion or an inclusion mask
 if apply_masking.lower() in yes_validation_list:
@@ -226,19 +228,14 @@ base_out = base[:-20]
 print (base_out)
 
 
-if output_type == 1:       # analysis layers only
-    outfile_tsa_analysis = os.path.join(output_folder, (prefix + base_out + "TSA_stack_analysis"))
-    check_out = outfile_tsa_analysis
-elif output_type == 2:     # 2 analysis and stack together
-    outfile_tsa_analysis_stack = os.path.join (output_folder, (prefix + base_out + "TSA_stack_analysis_data"))
-    check_out = outfile_tsa_analysis_stack
-elif output_type == 3:     # analysis and stack separate
-    outfile_tsa_data = os.path.join(output_folder, (prefix + base_out + "TSA_stack_data"))
-    outfile_tsa_analysis = os.path.join (output_folder, (prefix + base_out + "TSA_stack_analysis"))
-    check_out = outfile_tsa_data
-else: 
-    ("Error - The output_type is not set properly") # not suppose to get there. 
-    sys.exit()
+# For output_type == 1  or output_type == 3
+outfile_tsa_analysis = os.path.join(output_folder, (prefix + base_out + "TSA_stack_analysis"))
+check_out = outfile_tsa_analysis
+# For output_type == 2
+outfile_tsa_analysis_stack = os.path.join (output_folder, (prefix + base_out + "TSA_stack_analysis_data"))
+check_out = outfile_tsa_analysis_stack
+# For output_type == 3
+outfile_tsa_data = os.path.join(output_folder, (prefix + base_out + "TSA_stack_data"))
 
 #Check if the specified output file already exists. If yes error.
 if os.path.exists(check_out):
@@ -246,13 +243,6 @@ if os.path.exists(check_out):
     print("Output_file-->" + check_out )
     print("Delete the existing file or specify a different name")
     sys.exit()
-
-if os.path.exists(outfile_tsa_analysis):
-    print("Warning - the output file already exists")
-    print("Output_file-->" + outfile_tsa_analysis)
-    print("Delete the existing file or specify a different name")
-    sys.exit()
-
 
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------    
@@ -317,16 +307,14 @@ file_size_check (files_list)
 #                                             Creating the Data stack  
 # -----------------------------------------------------------------------------------------------------------------
 
-
-
 print("\t")
 print ('----------------------------------------------------------------------------------------------------------')
 print("                                    Creating the Data stack                                                ")
 print ('----------------------------------------------------------------------------------------------------------')
 print("\t")
-
-#------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------
 # SOLUTION USING NUMPY
+#------------------------------------------------------------------------------------------------------------------
 if use_numpy is True: 
 
     print(time.strftime("%H:%M:%S") + " Selected stacking method is NUMPY")
@@ -336,10 +324,9 @@ if use_numpy is True:
     first_file = input_file_list[0]
     print ("   " + first_file)
 
-    base = os.path.basename(output_file_name[:-4])
-    base2 = base + "_stack.pix"
-    copy_out = os.path.join(output_folder, base2)
-    shutil.copy2(first_file, copy_out)
+    # Valid for all output type options
+    copy_out_data =  os.path.join(outfile_tsa_data + out_filter + ".pix" )
+    shutil.copy2(first_file, copy_out_data)
 
     print ("\t")
     print(time.strftime("%H:%M:%S") + " Transferring the other files in the data stack")
@@ -349,13 +336,13 @@ if use_numpy is True:
     nb_files = str(len(file_to_transfer))
 
     print(time.strftime("%H:%M:%S") + " Creating output stack empty channels")
-    fsize = round((os.path.getsize(copy_out)/ 1073741824), 3)
+    fsize = round((os.path.getsize(copy_out_data)/ 1073741824), 3)
 
     total_estimated_size = len(input_file_list) * fsize
-    print ("   Total estimated size of the output stack: " + str (total_estimated_size) + " GB")
+    print ("   Estimated size of the output stack: " + str (total_estimated_size) + " GB")
     print ("\t")
     print(time.strftime("%H:%M:%S") + " Adding the empty channels to the stack")
-    file = copy_out
+    file = copy_out_data
     pciop = 'ADD'
     pcival = [0,0,0,len(file_to_transfer)]
 
@@ -374,7 +361,7 @@ if use_numpy is True:
         print("    " + ii )
 
         fili = ii  #
-        filo = copy_out
+        filo = copy_out_data
         dbic = [1]
         dboc = [count]
         print ("    output channel " + str(count))
@@ -404,7 +391,7 @@ if use_numpy is True:
         count = 1
         for ii in range (1, max_chan + 1):
             print("   " + time.strftime("%H:%M:%S") + " Filtering channel " + str(count) + " of " + str(max_chan))
-            file = copy_out
+            file = copy_out_data
             dbic = [ii]  
             dboc = [ii]  
             flsz = [filter_size_X_Y[0], filter_size_X_Y[1]]
@@ -427,34 +414,36 @@ if use_numpy is True:
     # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
     print("\t")
     print("\t")
+    if apply_min_max_bounds is True:
+        print(time.strftime("%H:%M:%S") + " Stack preparation - Minimum and maximum bounds requested")
+        input_stack = copy_out_data
+        stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
+    if apply_min_max_bounds is False:
+        print("No min max requested")
+
+    print("\t")
+    print("\t")
     if apply_masking is True:
         print(time.strftime("%H:%M:%S") + " Stack preparation - Applying the exclusion or inclusion vector mask")
-        input_stack = copy_out
+        input_stack = copy_out_data
         stack_masking(input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder)
     if apply_masking is False :
         print(time.strftime("%H:%M:%S") + " Stack preparation - Exclusion or inclusion mask not requested")
 
     print("\t")
-    print("\t")
-    if apply_min_max_bounds is True:
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Minimum and maximum bounds not requested")
-        input_stack = copy_out
-        stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
-    if apply_min_max_bounds is False:
-        print("No min max requested")
-
-
+  
     # -------------------------------------------------------------------------------------------------------------
     # Renaming the channels according to the mid date and creating a metadata of the same name.
     print("\t")
-    print(time.strftime("%H:%M:%S") + "Stack preparation - Adding channels description and metadata")
+    print ("\t")
+    print(time.strftime("%H:%M:%S") + " Stack preparation - Adding channels description and metadata")
 
     # open dataset in write mode
     channel = 1
     for mid_date, ref_date, dep_date in  zip (mid_date_list, ref_date_list, dep_date_list):
 
         # print (mid_date + "-->" + str(channel))
-        with ds.open_dataset(copy_out, ds.eAM_WRITE) as ds1:
+        with ds.open_dataset(copy_out_data, ds.eAM_WRITE) as ds1:
             # get the AuxiliaryData
             aux = ds1.aux_data
 
@@ -464,6 +453,7 @@ if use_numpy is True:
             mdmap['MID_DATE'] = mid_date
             mdmap['REF_DATE'] = ref_date
             mdmap['DEP_DATE'] = dep_date
+            mdmap['NO_DATA_VALUE'] = str(no_data_value)
             chan_desc = (mid_date + " (ref_" + ref_date + "_" + "dep_" + dep_date + ")")
             # set the metadata map back to the AuxiliaryData
             aux.set_chan_description(chan_desc, channel)
@@ -480,9 +470,9 @@ if use_numpy is True:
     print('----------------------------------------------------------------------------------------------------------')
     print("\t")
 
-    with ds.open_dataset(copy_out) as ds9:
+    with ds.open_dataset(copy_out_data) as ds9:
 
-        print(time.strftime("%H:%M:%S") + " Stack to process: " + copy_out)
+        print(time.strftime("%H:%M:%S") + " Stack to process: " + copy_out_data)
         reader=ds.BasicReader(ds9)
         # read the raster channels
         raster = reader.read_raster(0, 0, reader.width, reader.height)
@@ -522,7 +512,6 @@ if use_numpy is True:
                 output_ts_raster[x, y, 5] = no_data_value
                 output_ts_raster[x, y, 6] = no_data_value
                 output_ts_raster[x, y, 7] = no_data_value
-
             else:
                 #val = raster.data[x, y, :]
                 abs_diff = [abs(t - s) for s, t in zip(val, val[1:])]
@@ -546,28 +535,26 @@ if use_numpy is True:
     print("\t")
     print("\t")
     print(time.strftime("%H:%M:%S") + " Exporting the result to a PCIDSK file")
-    out_raster = gobs.copy_array_to_raster(output_ts_raster)
-    base = output_file_name[:-4]
+    
+    out_raster_analysis = gobs.copy_array_to_raster(output_ts_raster)
+    out_tsa_analysis_pix =  os.path.join(outfile_tsa_analysis + out_filter + ".pix" )
 
-    out_file_ts = os.path.join(output_folder, base + "_TSA_file.pix")
-
-    with ds.new_dataset(out_file_ts, 'PCIDSK', '') as write_ts:
+    with ds.new_dataset(out_tsa_analysis_pix, 'PCIDSK', '') as write_ts:
         writer =  ds.BasicWriter(write_ts)     # create a writer to write the raster
-        writer.create(out_raster)                # create the file on disk based on the size and datatype of raster
-        writer.write_raster(out_raster)          # write the raster to the new file
+        writer.create(out_raster_analysis)                # create the file on disk based on the size and datatype of raster
+        writer.write_raster(out_raster_analysis)          # write the raster to the new file
         writer.crs = ref_crs                    # write the coordinate system
         writer.geocoding = ref_geocoding        # write the geocoding information / must be of same
 
     print("\t")
-    print(time.strftime("%H:%M:%S") + " Writing some metadata to the output file")
-    with ds.open_dataset(out_file_ts, ds.eAM_WRITE) as ds1:
+    print(time.strftime("%H:%M:%S") + " Writing  metadata to the output file")
+    with ds.open_dataset(out_tsa_analysis_pix, ds.eAM_WRITE) as ds1:
         # get the AuxiliaryData
         aux = ds1.aux_data
         # Add the NO_DATA_VALUE at the file level.
         metadata = aux.file_metadata
         metadata['NO_DATA_VALUE'] = str(no_data_value)
         aux.file_metadata = metadata
-
 
         # set the metadata map back to the AuxiliaryData
         aux.set_chan_description("Absolute sum of changes", 1)
@@ -578,16 +565,73 @@ if use_numpy is True:
         aux.set_chan_description("Span (max - min)", 6)
         aux.set_chan_description("Pct(%) contribution of max value", 7)
         aux.set_chan_description("Date of max value", 8)
-
         # set the AuxiliaryData back to the dataset (ds1)
         ds1.aux_data = aux
 
+    #  Post processing depending on the stack output_type
+    if output_type == 1:    # We need to delete the  *TSA_stack_data_.pix file
+        print ("\t")
+        print(time.strftime("%H:%M:%S") + " output_type 1 selected, deleting the stack data file")
+        os.remove (copy_out_data)
+    if output_type == 2:    # We need to transfert the *TSA_stack_data_.pix file into the *TSA_stack_analysis*.pix file 
 
+        print(time.strftime("%H:%M:%S") + " output_type 2 selected, preparing the files.")
+        with ds.open_dataset(copy_out_data) as ds10:
+
+            num_channels = ds10.chan_count  # number of layers in the data stack
+            file = out_tsa_analysis_pix
+            pciop = 'ADD'
+            pcival = [0,0,0,num_channels]   # Add the equivalent of empty channels to the statistic file. 
+
+            try:
+                pcimod(file,pciop,pcival)
+            except PCIException as e:
+                print(e)
+            except Exception as e:
+                print(e)
+
+        for ii in range (1, num_channels + 1): 
+
+            fili = copy_out_data
+            filo = out_tsa_analysis_pix
+            dbic = [ii]
+            
+            out_chan =  8 + ii
+            dboc = [out_chan]
+            dbiw = []
+            dbow = []
+            options = ""
+            try:
+                iii(fili, filo, dbic, dboc, dbiw, dbow, options)
+            except PCIException as e:
+                print(e)
+            except Exception as e:
+                print(e)
+            
+        new_tsa_analysis_name =  (outfile_tsa_analysis_stack + out_filter + ".pix")            
+        os.rename(out_tsa_analysis_pix, new_tsa_analysis_name)
+        os.remove (copy_out_data)
 #------------------------------------------------------------------------------------------------------------------------
 # SOLUTION USING CATALYST
+#------------------------------------------------------------------------------------------------------------------------
 if use_catalyst is True: 
     print(time.strftime("%H:%M:%S") + " Selected stacking method is CATALYST")
     
+
+    if data_type_coh is True:  # hack to make coherence data works with PSSARTSA to ensure time ordered channels. 
+        # We create the "Acquisition DateTime" metadata and fiil it with the  "Dep_Acquisition_DateTime"
+       for ii in input_file_list:  
+       
+            with ds.open_dataset(ii,ds.eAM_WRITE) as ds12:   # Note .eAM_WRITE
+                aux = ds12.aux_data
+                Dep_DateTime = aux.get_file_metadata_value('Dep_Acquisition_DateTime')
+                
+                mdmap = aux.file_metadata
+                mdmap['Acquisition_DateTime'] = Dep_DateTime
+                aux.file_metadata = mdmap
+                ds12.aux_data = aux
+
+
     # preparing the mfile
     temp_mfile = os.path.join(output_folder, "temp_mfile_for_data_ingestion.txt")
     mfile_input = open(temp_mfile, "w")
@@ -596,11 +640,9 @@ if use_catalyst is True:
 
     if apply_mean_filter is True: 
         flsz = filter_size_X_Y
-        out_filter = ("_" + str(filter_size_X_Y[0]) + "x" + str(filter_size_X_Y[0]))
     if apply_mean_filter is False: 
         flsz = []
-        out_filter = ""
- 
+
     mfile =  temp_mfile
     dbic = [1]	
     mask =	[]			 					
@@ -629,6 +671,16 @@ if use_catalyst is True:
     except Exception as e:
         print(e)
 
+    if generate_overviews is True: 
+        print("   " + time.strftime("%H:%M:%S") + " generating the overviews for the output stack")
+        file = filo
+        dboc = []
+        force = ""	
+        olevels=[]
+        poption = "AVER"
+        pyramid( file, dboc, force, olevels, poption )
+
+
     if os.path.exists(temp_mfile):
         os.remove(temp_mfile)
     
@@ -642,7 +694,7 @@ if use_catalyst is True:
         input_stack = filo
         stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
     print("\t")
-
+    print("\t")
     if apply_masking is True:
         print(time.strftime("%H:%M:%S") + " Stack preparation - Applying the exclusion or inclusion vector mask")
         input_stack = filo
@@ -665,12 +717,12 @@ if use_catalyst is True:
         foptions = ""
 
         try:
-            fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
+            fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions)
         except PCIException as e:
             print(e)
         except Exception as e:
             print(e)
-
+        
         # Second we delete the same fourteen layers from the original pix file to only keep
         # the stack data.
         file = input_file
