@@ -8,19 +8,19 @@
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input/Output
-Coregistered_Pairs_Report = r"E:\RCMP_out\p033_f142\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
-output_folder = r"E:\RCMP_out\p033_f142"
+Coregistered_Pairs_Report = r"E:\RCMP_RCM\stack01_3MCP34_DESC\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
+output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
 prefix = ""
 
 # B) Elevation source
-DEM_file = r"D:\RCMP_border\DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 # C)  The channels to process for the time series (TSA) generation, can be a subset of the coregistered files channels
 # C.1) These parameters must be common to all scenes to be processed. The TSA_channel_mapping list must include all
 #      channels of the input file and not only the channels to be processed.
 TSA_channel_mapping = [1,2]
-TSA_channel_labels = ["HH", "HV"]
+TSA_channel_labels = ["RH", "RV"]
 
 # C.1) Coherence  options
 produce_coherence_layers = "yes"    # Only available for SLC data
@@ -42,11 +42,11 @@ TSA_math_labels = ["HH/VV", "HH/VV"]
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
 ortho_bounds_option = 1
-AOI_vector_file = r"D:\RCMP_border\S1A\p033_f142\AOI_ingest_p33_f142_UTM18-T_D000.pix"
+AOI_vector_file = r"E:\RCMP_RCM\stack01_3MCP34_DESC_aoi.pix"
 AOI_segment_number = 2
 
-ortho_resolution_X = "8"
-ortho_resolution_Y = "8"
+ortho_resolution_X = "2"
+ortho_resolution_Y = "2"
 
 # E) General options
 # Generate overviews - either yes or no,
@@ -137,7 +137,6 @@ if not os.path.exists(DEM_file):
 
 #-------------------------------------------------------------------------------------------
 # C.0) Channel mapping.  We check for the file input conformity
-
 produce_coherence_layers = produce_coherence_layers.lower()
 if produce_coherence_layers in yes_validation_list:
     produce_coherence_layers = True
@@ -154,7 +153,7 @@ produce_incidence_angle_layer = produce_incidence_angle_layer.lower()
 if produce_incidence_angle_layer in yes_validation_list:
     produce_incidence_angle_layer = True
 else:
-    produce_intensity_layers = False
+    produce_incidence_angle_layer = False
 
 produce_math_layers = produce_math_layers.lower()
 if produce_math_layers in yes_validation_list:
@@ -184,7 +183,6 @@ for ii in check_scenes_list:
         Matrix_Type = aux.get_file_metadata_value("Matrix_Type")
         SensorModelName = aux.get_file_metadata_value("SensorModelName")
         num_channels = ds2.chan_count
-
 
         print (Matrix_Type)
 
@@ -252,12 +250,30 @@ if produce_intensity_layers is True:
 
 #-------------------------------------------------------------------------------------------
 # C.3) Parameters validation for the incidence angle and the other intensity layers options
+if produce_intensity_layers is False and produce_incidence_angle_layer is True:
+    print ("Error - the produce_intensity_layers parameters must be set to yes to generate the incidence angle layers")
+    sys.exit()
 
+    # Check if there is an incidence angle segment for all files.    
+    # for input_file in check_scenes_list: 
 if produce_incidence_angle_layer is True:
-    incidence_layer_scene = check_scenes_list[0]
+    
+    print("\t")
+    print(time.strftime("%H:%M:%S") + " Checking for incidence angle arrays...")
+    print("\t")
+    for ii in check_scenes_list: 
+        print ("Checking -->" + ii )
 
+        with ds.open_dataset(ii, ds.eAM_READ) as ds3:
+            arr_id = ds3.get_array_io_ids()  # returns a list of the incidence angle array segment numbers. 
+            for jj in arr_id: 
+                print ("   incidence angle array id -->"+ str(jj))
+            ss2 = len(str(arr_id))
+            if ss2 == 0:
+                print ("Error - This file does not contain an incidence angle arrray")
+                sys.exit()
 
-# -------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------
 # C.5 Math Layers
 
 
@@ -447,7 +463,6 @@ if produce_coherence_layers is True:
 
 
 if produce_intensity_layers is True:
-
     print("\t")
     print("-------------------------------------------------------------------------------------------------------")
     print("                              Generating the intensity layers                                          ")
@@ -468,11 +483,11 @@ if produce_intensity_layers is True:
                     TSA_labels, ps_output_folder, unique_files, prefix)
 
 
-if produce_incidence_angle_layer is True:
+    if produce_incidence_angle_layer is True:
 
-    input_file = check_scenes_list[0]
-    output_folder_inc = Fld_intensity
-    inc_angle_layer (input_file, output_folder_inc, prefix)
+        input_files_list = check_scenes_list
+        output_folder_inc = Fld_intensity
+        inc_angle_layer (input_files_list, output_folder_inc, prefix)
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -485,9 +500,6 @@ output_folder_ortho = Fld_intensity_ortho
 ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
            ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
            ortho_resolution_Y, generate_overviews)
-
-
-
 
 
 # -------------------------------------------------------------------------------------------------
