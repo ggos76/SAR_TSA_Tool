@@ -8,8 +8,8 @@
 #  User defined variables
 # ----------------------------------------------------------------------------------------------
 # The Input scenes can be retrieved from an input folder or an mfile (*.txt)
-parent_folder_search = r"D:\Wapusk_2010\Roberge_lake\FQ22\unzip"
-keyword = "product.xml"
+parent_folder_search = r"D:\RCMP_RCM\raw_vendor\unzip\stk01_3MCP34_DESC"
+keyword = "manifest.safe"
 
 # Applies only to Sentinel-1 data. Ingest a single swath or all swaths.
 # Options are 1, 2, 3, 4 (all swaths)
@@ -17,11 +17,11 @@ sentinel_swath = 4
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
-prefix = "RB2010_"
-output_folder = r"E:\SAR_TSA_tests\RB2010_FQ22"
+prefix = "stk01_"
+output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
 
 # Elevation source
-DEM_file = r"D:\HBL_S1A_mapping\sHBL_GLO30DEM_LongLat_D000_with_0_elev.pix"
+DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 # Start and Stop date        # Valid options are yes and no
@@ -213,11 +213,6 @@ if subset_input_data.lower() in yes_validation_list:
         print("Provide a valid path and filename")
         sys.exit()
 
-generate_incidence_angle_layer = generate_incidence_angle_layer.lower()
-if generate_incidence_angle_layer in yes_validation_list:
-    generate_incidence_angle_layer = True
-else:
-    generate_incidence_angle_layer = False
 
 #----------------------------------------------------------------------------------------------
 #  B) Find input scenes from an MFILE or from an input folder with a specified keyword

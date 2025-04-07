@@ -8,12 +8,12 @@
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files\
-from ssl import Options
+#from ssl import Options
 
 
-Ingested_pairs_list_for_coregistration = r"E:\SAR_TSA_tests\RB2010_FQ22\1_Scenes_Import\RB2010_03_Ingested_pairs_list_for_coregistration.txt"
-output_folder = r"E:\SAR_TSA_tests\RB2010_FQ22"
-prefix = "RB2010_"
+Ingested_pairs_list_for_coregistration = r"E:\RCMP_RCM\stack01_3MCP34_DESC\1_Scenes_Import\stk01_03_Ingested_pairs_list_for_coregistration.txt"
+output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
+prefix = ""
 
 # B) Coregistration options.
 perform_coregistration = "yes"
@@ -24,9 +24,9 @@ assign_specific_coreg_ref_file = "no"
 coregistration_reference_file = r"\TSA_tests\3_COREG\Coregistered_Pairs_Report.txt"
 
 reference_channel = 1
-dep_output_channels = [1,2,3,4]
-dep_output_label = ["HH", "HV", "VH", "VV"]
-number_of_GCPs = 1000
+dep_output_channels = [1,2]
+dep_output_label = ["RH", "RV"]
+number_of_GCPs = 500
 minimum_correlation_score = 0.72
 search_radius_pixels = 150
 
