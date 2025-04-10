@@ -1,16 +1,17 @@
 #!/usr/bin/env python
-'''----------------------------------------------------------------------
- * Gabriel Gosselin, CCRS. May 2024                                      -
- * ----------------------------------------------------------------------
+'''-----------------------------------------------------------------------------------------------------------------
+ * Gabriel Gosselin, CCMEO\ CCRS. 2024-2025                                                                                -
+ * -----------------------------------------------------------------------------------------------------------------
 '''
 
-# ----------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
 #  Part 1: User defined variables
-# ----------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+
 # A) Input/Output
 Coregistered_Pairs_Report = r"E:\RCMP_RCM\stack01_3MCP34_DESC\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
 output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
-prefix = ""
+prefix = "stk01_"
 
 # B) Elevation source
 DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
@@ -22,22 +23,24 @@ DEM_elevation_channel = 1
 TSA_channel_mapping = [1,2]
 TSA_channel_labels = ["RH", "RV"]
 
-# C.1) Coherence  options
+# C.2) Coherence  options
 produce_coherence_layers = "yes"    # Only available for SLC data
 TSA_coherence_layers = [1]      # Must be all subset of TSA_channel_mapping
 apply_insraw_filter = "yes"
 filter_size = 9
 
-# C.2) Intensity options
+# C.3) Intensity options
 produce_intensity_layers = "yes"
 TSA_intensity_layers = [1, 2]    # Must be all subset of TSA_channel_mapping
 
-# C.3) Other intensity layers
+# C.4) Other intensity layers
 produce_incidence_angle_layer = "yes"
 
-produce_math_layers = "no"
-TSA_math_models_definition = r""
-TSA_math_labels = ["HH/VV", "HH/VV"]
+# C.5) Other math layers from the intensity files
+produce_math_layers = "yes"               
+TSA_math_models_definition = r"C:\Users\ggosseli\source\repos\SAR_TSA_Tool\TSA_utilities\model_00_band_ratio.txt"
+TSA_math_xtra_channels = 2
+TSA_math_xtra_labels = ["RH div RV", "math_2"]
 
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
@@ -54,23 +57,24 @@ generate_overviews = "yes"
 # keep or delete intermediate files - either yes or no. No is recommended.
 delete_intermediary_files = "no"
 
-# -----------------------------------------------------------------------------------------------------
-#  Scripts -  Notes.
-# -----------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+#  Part 2: Notes
+# -----------------------------------------------------------------------------------------------------------------
 '''
 1) There is no verification if the specified DEM covers completely the spatial
    extents of the AOI. If not the script will run to completion but all
    interferograms will be blank after INSRAW.
-
 '''
-# ---------------------------------------------------------------------------------------------
-#  Main program
-# ----------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+#  Part 3: Imports
+# -----------------------------------------------------------------------------------------------------------------
 import sys
 import os
 import fnmatch
 import time
 import locale
+import re
+from tracemalloc import start
 
 import pci
 from pci.insraw import insraw
@@ -81,15 +85,23 @@ from pci.api import datasource as ds
 from TSA_utilities.SAR_TSA_utilities_definitions import ortho_run
 from TSA_utilities.SAR_TSA_utilities_definitions import nan_replace
 from TSA_utilities.SAR_TSA_utilities_definitions import psiqinterp_run
-from TSA_utilities.SAR_TSA_other_layers import inc_angle_layer
 from TSA_utilities.SAR_TSA_utilities_definitions import create_list
+from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
+from TSA_utilities.SAR_TSA_other_layers import inc_angle_layer
+from TSA_utilities.SAR_TSA_other_layers import math_layers_prod
+from TSA_utilities.SAR_TSA_other_layers import math_layers_split
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
 
-# -------------------------------------------------------------------------
-#  PART 2: Validation
-# -------------------------------------------------------------------------
+
+
+
+# -----------------------------------------------------------------------------------------------------------------
+#  Part 4: Parameters validation
+# -----------------------------------------------------------------------------------------------------------------
+TSA_03_start = time.time()
+val_start = time.time()
 
 # Hardcoded parameters
 yes_validation_list = ["yes", "y", "yse", "ys"]
@@ -97,13 +109,11 @@ no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list + no_validation_list
 GB = 1073741824
 
-script2_procTime = os.path.join(output_folder, prefix + "script3_INSCOREG_ProcessingTime.txt")
-time_log = open(script2_procTime, "w")
 Fld_Coregistration = os.path.join(output_folder, "2_Coregistered_Scenes")
 AOI_file = AOI_vector_file
 AOI_file_segment_number = AOI_segment_number
 
-#  Version control - do nothing for now.
+#  Versions control
 print("\t")
 print(pci.version)
 
@@ -112,12 +122,13 @@ py1 = str(sys.version_info[0])
 py2 = str(sys.version_info[1])
 py3 = (py1 + "." + py2)
 python_version = float(py3)
-if python_version < 3.6:
+if python_version < 3.8:
     print("You are using Python v" + str(python_version))
-    print("You need to update to Python 3.6 or newer versions")
+    print("You need to update to Python 3.8 or newer versions")
     sys.exit()
 print("\t")
 
+# -----------------------------------------------------------------------------------------------------------------
 # A) Input files and folder
 if not os.path.exists(Coregistered_Pairs_Report):
     print ("Error - The SARINGESTAOI_Baselines_Report does not exist or the path/filename is wrong.")
@@ -129,14 +140,16 @@ if not os.path.exists(Fld_Coregistration):
     print ("Error - The coregistered scenes folder does not exist")
     print (" Expected path: " + Fld_Coregistration)
     sys.exit()
-
+# -----------------------------------------------------------------------------------------------------------------
 # B) Elevation source
 if not os.path.exists(DEM_file):
     print ("Error - The DEM_file does not exist or the path/filename is wrong.")
     sys.exit()
 
-#-------------------------------------------------------------------------------------------
-# C.0) Channel mapping.  We check for the file input conformity
+# -----------------------------------------------------------------------------------------------------------------
+# C.0) Channel mapping.  We check for the input scenes conformity. All files must have the same number of 
+#     lines and colums and the same matrix type. Matrix type must be complex if the coherence option is 
+#     selected.  
 produce_coherence_layers = produce_coherence_layers.lower()
 if produce_coherence_layers in yes_validation_list:
     produce_coherence_layers = True
@@ -162,8 +175,16 @@ else:
     produce_math_layers = False
 
 # Check if a least one layer type is selected:
-if (produce_coherence_layers is False) and (produce_intensity_layers is False) and (produce_math_layers is False):
+if (produce_coherence_layers is False) and (produce_intensity_layers is False) :
     print ("Error - At least one type of output layer must be selected")
+    sys.exit()
+
+if (produce_intensity_layers is False) and (produce_math_layers is True): 
+    print ("Error - produce_intensity_layers must be set to yes when produce_math_layers is set to yes")
+    sys.exit()
+
+if (produce_intensity_layers is False) and (produce_incidence_angle_layer is True): 
+    print ("Error - produce_intensity_layers must be set to yes when produce_incidence_angle_layer is set to yes")
     sys.exit()
 # ------------------------------------------------------------------------------
 # C.1) Channel mapping.  We check for the input scenes conformity
@@ -177,13 +198,12 @@ for root, dirs, files in os.walk(Fld_Coregistration):
         check_scenes_list.append(os.path.join(root, filename))
 
 for ii in check_scenes_list:
-    print ("Checking input scene conformity--->" + ii)
+    print ("Checking the input scenes conformity--->" + ii)
     with ds.open_dataset(ii, ds.eAM_READ) as ds2:
         aux = ds2.aux_data
         Matrix_Type = aux.get_file_metadata_value("Matrix_Type")
         SensorModelName = aux.get_file_metadata_value("SensorModelName")
         num_channels = ds2.chan_count
-
         print (Matrix_Type)
 
         # check size here!
@@ -210,8 +230,8 @@ for ii in check_scenes_list:
                     print("Error - TSA_intensity_layers input channel " + str(in_chan) + " is not included in"
                           " TSA_channel_mapping")
                     sys.exit()
-
-# Validation for the Raw interferograms filter options
+# ------------------------------------------------------------------------------
+# C.2) Coherence options - Validation for the Raw interferograms filter options
 if produce_coherence_layers is True:
     apply_insraw_filter = apply_insraw_filter.lower()
     if apply_insraw_filter in yes_validation_list:
@@ -250,20 +270,13 @@ if produce_intensity_layers is True:
 
 #-------------------------------------------------------------------------------------------
 # C.3) Parameters validation for the incidence angle and the other intensity layers options
-if produce_intensity_layers is False and produce_incidence_angle_layer is True:
-    print ("Error - the produce_intensity_layers parameters must be set to yes to generate the incidence angle layers")
-    sys.exit()
-
-    # Check if there is an incidence angle segment for all files.    
-    # for input_file in check_scenes_list: 
+# Check if there is an incidence angle segment for all input scenes.    
 if produce_incidence_angle_layer is True:
-    
     print("\t")
     print(time.strftime("%H:%M:%S") + " Checking for incidence angle arrays...")
     print("\t")
     for ii in check_scenes_list: 
         print ("Checking -->" + ii )
-
         with ds.open_dataset(ii, ds.eAM_READ) as ds3:
             arr_id = ds3.get_array_io_ids()  # returns a list of the incidence angle array segment numbers. 
             for jj in arr_id: 
@@ -275,8 +288,34 @@ if produce_incidence_angle_layer is True:
 
 # -----------------------------------------------------------------------------------------------
 # C.5 Math Layers
-
-
+if produce_math_layers is True:
+    #A) check if the intensity layers are selected. 
+    
+    if len(TSA_math_xtra_labels) != TSA_math_xtra_channels: 
+        print ("Error - The number of  TSA_math_xtra_channels must be equal to the number of TSA_math_xtra_labels")
+        sys.exit()
+    if not os.path.exists (TSA_math_models_definition): 
+        print ("Error - The TSA_math_models_definition  file does't exist or the path/file is wrong")
+        sys.exit()
+    invalid_chars = r'[<>:"/\\|?*]'
+    # Check for illegal characters in windows OS, this is somehow expected for math channels. 
+    for in_label in TSA_math_xtra_labels:
+        has_invalid = bool(re.search(invalid_chars, in_label))
+        if has_invalid is True:
+            print ("\t")
+            print ("Error - The following TSA_math_xtra_labels contains an invalid character")
+            print ('List of invalid characters: < > : " /  \\ | ? * "')
+            print (in_label)
+            sys.exit()
+    Fld_math_layers = os.path.join (output_folder, "3_3_1_Math_layers")
+    if not os.path.exists(Fld_math_layers):
+        os.makedirs(Fld_math_layers)
+    Fld_math_layers_ortho = os.path.join (output_folder, "3_3_2_Math_layers_ortho")
+    if not os.path.exists(Fld_math_layers_ortho):
+        os.makedirs(Fld_math_layers_ortho)
+    Fld_math_layers_ortho_split = os.path.join (output_folder, "3_3_3_Math_layers_ortho")
+    if not os.path.exists(Fld_math_layers_ortho_split):
+        os.makedirs(Fld_math_layers_ortho_split)
 
 #-------------------------------------------------------------------------------------------
 # D) Orthorectification options
@@ -306,40 +345,57 @@ if isinstance(ortho_resolution_Y, str) is False:
     ortho_resolution_Y = ortho_resolution_Y_temp
     sys.exit()
 
-
 # F) Other options verification
 generate_overviews = generate_overviews.lower()
-if generate_overviews not in yes_no_validation_list:
+if generate_overviews in yes_validation_list: 
+    generate_overviews = True
+elif generate_overviews in no_validation_list:
+    generate_overviews = False
+else: 
     print("\t")
     print("Error - Selected overviews option is not valid.")
     print('Accepted values are: "yes" or "no"')
     sys.exit()
 
 delete_intermediary_files = delete_intermediary_files.lower()
-if delete_intermediary_files not in yes_no_validation_list:
+if delete_intermediary_files in yes_validation_list: 
+    delete_intermediary_files = True
+elif delete_intermediary_files in no_validation_list:
+    delete_intermediary_files = False
+else: 
     print("\t")
-    print("Error - Delete intermediary file option is not valid.")
+    print("Error - Selected delete_intermediary_files option is not valid.")
     print('Accepted values are: "yes" or "no"')
     sys.exit()
-
 
 Fld_Output_stack_lists = os.path.join(output_folder, "6_Output_stack_lists")
 if not os.path.exists(Fld_Output_stack_lists):
     os.makedirs(Fld_Output_stack_lists)
 
-start = time.time()
-# ---------------------------------------------------------------------------------------------------------------
-#                                                  Main program
-# ---------------------------------------------------------------------------------------------------------------
-if produce_coherence_layers is True:
+# All validations have suceeded, a time log file is open.
+script3_procTime = os.path.join(output_folder, prefix + "TSA_script3_processingTime.txt")
+time_log = open(script3_procTime, "w")
+string_0 = ("Process;proc.time (secs);Data size (MB);Number of files")
+time_log.write("%s\n" % string_0)
 
+val_stop = time.time()
+string_1 = "Validation step:" + str (round((val_stop - val_start), 2)) 
+time_log.write("%s\n" % string_1)
+
+# -----------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+#  Part 5: Main program
+# -----------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------
+
+if produce_coherence_layers is True:
+    proc_start_time = time.time()
     print("\t")
     print("-------------------------------------------------------------------------------------------------------")
     print("                               RAW INTERFEROGRAMS GENERATION                                           ")
     print("-------------------------------------------------------------------------------------------------------")
     print("\t")
 
-    insraw_start = time.time()
     Raw_Interferogram_list = []
     Input_file_lines = []
     pair_number = []
@@ -404,7 +460,7 @@ if produce_coherence_layers is True:
                     insraw(filref, dbic_ref, fili, dbic, flsz, filo)
                     Raw_Interferogram_list.append(filo)
 
-                    if generate_overviews in yes_validation_list:
+                    if generate_overviews is True:
                         pyramid(file=filo, force='yes', poption='aver',
                                 dboc=[], olevels=[])
                 except PCIException as e:
@@ -421,19 +477,37 @@ if produce_coherence_layers is True:
     with open(file, "w") as f:
         f.write("\n".join(Raw_Interferogram_list))
 
-    insraw_stop = time.time()
-    string1 = "3-INSRAW total proc time;"
-    ellapse_time = str(round(insraw_stop - insraw_start, 2))
-    string2 = string1 + ellapse_time
-    time_log.write("%s\n" % string2)
-
+    proc_stop_time = time.time()
+    folder = Fld_Raw_Interferograms
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("RAW interferogram generation: " + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
+    
+    # ---------------------------------------------------------------------------------------------------
     # Replacings NANs (if any) by NoDATA in the output RAW interferograms
+    proc_stop_time = time.time()
     step_nans = "INSRAW_"
     input_folder_nans = Fld_Raw_Interferograms
-    nan_replace(step_nans, input_folder_nans)
-
-    # ----------------------------------------------------------------------------------------------------------------
+    nans_file = os.path.join (input_folder_nans, "INSRAW_replace_nans_info.txt")
+    if os.path.exists(nans_file):
+        print (" Checks for NANs already done - skip")
+    else: 
+        nan_replace(step_nans, input_folder_nans)
+    
+    proc_stop_time = time.time()
+    folder = Fld_Raw_Interferograms
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Checking for NANS:" + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
+   
+    # -------------------------------------------------------------------------------------------------------------
     # Generating the coherence layers
+    print("\t")
+    print("-------------------------------------------------------------------------------------------------------")
+    print("                              Generating the coherence layers                                          ")
+    print("-------------------------------------------------------------------------------------------------------")
+    print("\t")
+    proc_start_time = time.time()
     print ("\t")
     print(time.strftime("%H:%M:%S") + " Converting the Raw Interferograms to phase coherence (0-1)")
     search_folder = Fld_Raw_Interferograms
@@ -444,23 +518,35 @@ if produce_coherence_layers is True:
     interp_type = "amp"
     suffix = "_coh"
     ps_output_folder = Fld_coherence
+    math_chans = "no"
 
     psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers,
-                    TSA_labels, ps_output_folder, unique_files, prefix)
+                    TSA_labels, ps_output_folder, unique_files, prefix, math_chans)
 
-    # ----------------------------------------------------------------------------------------------------------------
-    # Orthorectification
+
+    proc_stop_time = time.time()
+    folder = Fld_coherence
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Coherence layers generation:" + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
+    # --------------------------------------------------------------------------------------------------------------
+    # Orthorectification of the coherences layers
+    proc_start_time = time.time()
     print ("\t")
     print(time.strftime("%H:%M:%S") + " Orthorectification of the coherence layers ")
 
     input_folder_for_ortho = Fld_coherence
-    #output_folder_ortho_raw = Fld_coherence_ortho
     output_folder_ortho = Fld_coherence_ortho
 
     ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
                ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
-               ortho_resolution_Y, generate_overviews)
+               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
 
+    proc_stop_time = time.time()
+    folder = Fld_coherence_ortho
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Coherence layers orthorectification:" + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
 
 if produce_intensity_layers is True:
     print("\t")
@@ -468,6 +554,7 @@ if produce_intensity_layers is True:
     print("                              Generating the intensity layers                                          ")
     print("-------------------------------------------------------------------------------------------------------")
     print("\t")
+    proc_start_time = time.time()
 
     print(time.strftime("%H:%M:%S") + " Creating the intensity layers")
     search_folder = Fld_Coregistration
@@ -479,66 +566,98 @@ if produce_intensity_layers is True:
     suffix = "int"
     ps_output_folder = Fld_intensity
 
+    if produce_math_layers is True: 
+        math_chans = "yes"
+    else: 
+        math_chans = "no"
+
     psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers,
-                    TSA_labels, ps_output_folder, unique_files, prefix)
+                    TSA_labels, ps_output_folder, unique_files, prefix, math_chans)
 
+    proc_stop_time = time.time()
+    folder = Fld_intensity
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Intensity layers generation:" + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
 
+    # --------------------------------------------------------------------------------
     if produce_incidence_angle_layer is True:
+        proc_start_time = time.time()
 
         input_files_list = check_scenes_list
         output_folder_inc = Fld_intensity
         inc_angle_layer (input_files_list, output_folder_inc, prefix)
+        
+        proc_stop_time = time.time()
+        folder = Fld_intensity
+        out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+        string_1 = ("Incidence angle channel generation:" + out_folder_time_size) 
+        time_log.write("%s\n" % string_1)
 
 
-# ----------------------------------------------------------------------------------------------------------------
-# Orthorectification
-print(time.strftime("%H:%M:%S") + " Orthorectification of the intensity layers")
-input_folder_for_ortho = Fld_intensity
-#output_folder_ortho_coreg = Fld_intensity_ortho
-output_folder_ortho = Fld_intensity_ortho
+    # Orthorectification of the intensity layers
+    proc_start_time = time.time()
+    print(time.strftime("%H:%M:%S") + " Orthorectification of the intensity layers")
+    input_folder_for_ortho = Fld_intensity
+    output_folder_ortho = Fld_intensity_ortho
+ 
+    ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
+               ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
+               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
+    
+    proc_stop_time = time.time()
+    folder = Fld_intensity_ortho
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Intensity layers orthorectification:" + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
 
-ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
-           ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
-           ortho_resolution_Y, generate_overviews)
+    # --------------------------------------------------------------------------------
+    if produce_math_layers is True:
+        proc_start_time = time.time()
+
+        math_layers_prod (TSA_math_models_definition, TSA_math_xtra_channels, TSA_math_xtra_labels,
+                        Fld_math_layers, Fld_math_layers_ortho, prefix)
+        
+        proc_stop_time = time.time()
+        folder = Fld_math_layers
+        out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+        string_1 = ("Math layer(s) generation" + out_folder_time_size) 
+        time_log.write("%s\n" % string_1)
 
 
-# -------------------------------------------------------------------------------------------------
+        # Orthorectification of the Math layers
+        proc_start_time = time.time()
+        print("\t")
+        print(time.strftime("%H:%M:%S") + " Orthorectification of the Math layers")
+        input_folder_for_ortho = Fld_math_layers
+        output_folder_ortho = Fld_math_layers_ortho
+
+        ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
+               ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
+               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
+      
+        # -------------------------------------------------------------------------------------------------------
+        # Math layers splitting
+        output_folder = Fld_math_layers_ortho_split
+        suffix = " intensity"
+        math_layers_split (Fld_math_layers_ortho, output_folder, prefix, TSA_math_xtra_channels, 
+                           TSA_math_xtra_labels, suffix)
+
+        proc_stop_time = time.time()
+        folder = Fld_math_layers_ortho_split
+        out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+        string_1 = ("Math layer(s) orthorectification:" + out_folder_time_size) 
+        time_log.write("%s\n" % string_1)
+
+# --------------------------------------------------------------------------------------------------------------
 # E) Preparation for the Time Series analysis
-# -------------------------------------------------------------------------------------------------
-
-'''
+# --------------------------------------------------------------------------------------------------------------
 print("\t")
-print(" ------------------------------------------------------------------------------------------")
-print("                   Time Series Analysis - Files preparation                                ")
-print(" ------------------------------------------------------------------------------------------")
+print(" ------------------------------------------------------------------------------------------------------")
+print("                 Time Series Analysis - Files preparation  (Output lists creation)                     ")
+print(" ------------------------------------------------------------------------------------------------------")
 print("\t")
-
-# Orthorectified coregistered files, convert the complex channel(s) to intensity
-print(time.strftime("%H:%M:%S") + " Converting the orthorectified scenes to intensity")
-search_folder = output_folder_ortho_coreg
-keyword = "o*.pix"
-interp_type = "int"
-suffix = "_int"
-
-psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_channels, TSA_channels_label )
-
-
-# Orthorectified Raw interferograms, convert the complex channel(s) to coherence
-print ("\t")
-print(time.strftime("%H:%M:%S") + " Converting the orthorectified RAW Inteferograms to coherence")
-search_folder = output_folder_ortho_raw
-keyword = "oraw*.pix"
-interp_type = "amp"
-suffix = "_coh"
-psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_channels, TSA_channels_label)
-
-'''
-
-print("\t")
-print(" ------------------------------------------------------------------------------------------")
-print("                 Time Series Analysis - Files preparation  (Output lists creation)         ")
-print(" ------------------------------------------------------------------------------------------")
-print("\t")
+proc_start_time = time.time()
 
 if produce_coherence_layers is True:
     # Creating output lists of files for the stacking.
@@ -559,8 +678,11 @@ if produce_intensity_layers is True:
     TSA_channels = TSA_intensity_layers
     create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_channels, TSA_channel_labels)
 
-
-
+proc_stop_time = time.time()
+folder = Fld_Output_stack_lists
+out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+string_1 = ("Time series list preparation:" + out_folder_time_size) 
+time_log.write("%s\n" % string_1)
 
 '''
 # ------------------------------------------------------
@@ -586,21 +708,28 @@ if delete_intermediary_files in yes_validation_list:
             shutil.rmtree(delete)
 
 '''
-print("--------------------------------------------------------------")
+print("\t")
+print(" ------------------------------------------------------------------------------------------------------")
+print(" ------------------------------------------------------------------------------------------------------")
 print((time.strftime("%H:%M:%S")))
 print("All processing completed")
 print("\t")
-end = time.time()
+TSA_03_stop = time.time()
 
-ellapse_time_seconds = round((end - start), 2)
+ellapse_time_seconds = round((TSA_03_stop - TSA_03_start), 2)
 ellapse_time_minutes = round((ellapse_time_seconds / 60), 2)
 ellapse_time_hours = round((ellapse_time_seconds / 3600), 2)
 
 print("Processing time (seconds): " + str(ellapse_time_seconds))
 print("Processing time (minutes): " + str(ellapse_time_minutes))
 print("Processing time (hours): " + str(ellapse_time_hours))
-string1 = "10-Total proc time;" + str(ellapse_time_seconds)
-time_log.write("%s\n" % string1)
 
+
+string1 = "TSA_03 total processing time (secs):;" + str(ellapse_time_seconds)
+time_log.write("%s\n" % string1)
+string1 = "TSA_03 total processing time (mins):;" + str(ellapse_time_minutes)
+time_log.write("%s\n" % string1)
+string1 = "TSA_03 total processing time hours):;" + str(ellapse_time_hours)
+time_log.write("%s\n" % string1)
 time_log.close()
 

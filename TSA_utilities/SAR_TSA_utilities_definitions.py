@@ -23,6 +23,7 @@ from pci.api.cts import crs_to_mapunits
 from pci.replacenans import replacenans
 from pci.psiqinterp import psiqinterp
 from pci.poly2bit import poly2bit
+from pci.fexport import fexport
 from pci.model import model
 from pci import nspio
 
@@ -68,9 +69,12 @@ def nan_replace(step_nans, input_folder_nans):
 
     return ()
 
-# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, AOI_file,
-               AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews):
+#----------------------------------------------------------------------------------------------------------------------------
+# Orthorectification
+#----------------------------------------------------------------------------------------------------------------------------
+def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, 
+               AOI_file, AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, 
+               TSA_math_xtra_channels):
 
     # A) Find the files to orthorectify
     files_to_ortho_list = []
@@ -124,7 +128,26 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
         lry_AOI = str(AOI_LR_Y)
 
 
-    # C) Orthorectification
+    # C) Find the channel(s) to orthorectify
+    # Special case for orthorectifying the math layers. 
+    # Check if the input folder contains "3_3_1_Math_layers"
+    target = "3_3_1_Math_layers"
+
+    if target in os.path.normpath(input_folder_for_ortho): 
+        print ("Orthorectification of the match layers")
+        with ds.open_dataset(files_to_ortho_list[0]) as ds4:
+             chans_list = []
+             chans = ds4.chan_count
+             for ii in range (1,chans+1,1): 
+                 chans_list.append(ii)
+
+        print (chans_list)
+        dbic_ortho = chans_list[-TSA_math_xtra_channels:] 
+    else: 
+        dbic_ortho = [] # Blank, will process all channels of the input file.
+    
+    print (dbic_ortho)
+    # D) Orthorectification
     number_of_files = str(len(files_to_ortho_list))
     print("\t")
     count = 1
@@ -136,7 +159,7 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
         print("   Input file: " + input_scene)
 
         mfile = input_scene
-        dbic = []  # Blank, will process all channels of the input file.
+        dbic = dbic_ortho  
         mmseg = []
         dbiw = []
         srcbgd = "NONE"
@@ -202,17 +225,19 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
 
     return ()
 
-# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+#----------------------------------------------------------------------------------------------------------------------------
+# Conversion from complex to intensity data
+#----------------------------------------------------------------------------------------------------------------------------
 def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA_labels,
-                    ps_output_folder, unique_files, prefix):
-
+                    ps_output_folder, unique_files, prefix, math_chans):
+    
+    #-------------------------------------------------------------------------------------------------------------------------
+    # A) Find the unique scenes (mainly for the coregistered files when SBAS mode is use)
     file_to_process = []
     for root, dirs, files in os.walk(search_folder):
         for filename in fnmatch.filter(files, keyword):
             file_to_process.append(os.path.join(root, filename))
 
-        # A) Find the unique scenes (mainly for the coregistered files)
         if unique_files.lower() == "yes":
             Acquisition_DateTime3 = []
 
@@ -236,19 +261,21 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
     nb_files = str(len(file_to_process))
     for ii in file_to_process:
         print (ii)
-
+    
+    nb_chans = str(len(TSA_layers))
+    #-------------------------------------------------------------------------------------------------------------------------
+    # B) Converting the complex channels to intensity
     print ("\t")
-
     if interp_type == "int":
-         count = 1
-         for ii in file_to_process:
-
-            print((time.strftime("%H:%M:%S") + " Input Scene: " + ii))
+        count = 1
+        for ii in file_to_process:
+            print ("\t")
+            print (time.strftime("%H:%M:%S") + " Processing file " + str (count) + " of " + nb_files)
+            print ("   input file-->" + ii)
             # We need to  remove the "coreg: part for individual layers
             base1 = os.path.basename(ii[:-4])
             index = base1.find(prefix)
             base = base1[index:]
-
             chan = 1
             for in_chan in TSA_layers:
                 nb_chan = str(len(TSA_layers))
@@ -256,12 +283,9 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
                 dbic = [in_chan]
                 cinterp = interp_type
                 dboc = []
-
                 in_label = TSA_labels[in_chan-1]
                 filo = os.path.join(ps_output_folder, base + "_" + in_label +"_"+ suffix + ".pix")
-
                 print("   Converting channel " + str(chan) + " of " + nb_chan + ": output file-->" + filo)
-
                 ftype = "PIX"
                 foptions = ""
 
@@ -275,10 +299,77 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
                     except Exception as e:
                         print(e)
                     chan = chan + 1
-            print ("\t")
+            
+            if math_chans == "yes": 
+            # The math layers are selected, we will  run PSIQINTERP  again for all channels 
+            # Note: FEXPORT doesn't work since the math model cannot be exported.  
+                print ("   Exporting the math layers")
+
+                out_math = os.path.dirname (ps_output_folder)
+                out_math2 = os.path.join(out_math, "3_3_1_Math_layers")
+
+                fili = ii
+                dbic = []
+                cinterp = interp_type
+                dboc = []
+                filo = os.path.join(out_math2, base + "_" + suffix + ".pix")
+                print ("   Output file-->" + filo)
+                ftype = "PIX"
+                foptions = ""
+             
+                if os.path.exists(filo):
+                    print ("File already exist - skip")
+                else:
+                    try:
+                        psiqinterp(fili, dbic, cinterp, dboc, filo, ftype, foptions)
+                    except PCIException as e:
+                        print(e)
+                    except Exception as e:
+                        print(e)   
+                
+                '''
+                # We split the channels 
+                chan = 1       
+                for in_chan in TSA_layers:
+                    nb_chan = str(len(TSA_layers))
+                    in_label = TSA_labels[in_chan - 1]
+
+                    out_split_int = os.path.dirname (ps_output_folder)
+                    out_split_int_folder = os.path.join(out_split_int, "3_2_1_Intensity")
+                    
+                    print ("   Exporting intensity channel " + str (chan) + " of " + nb_chans)
+                    fili = ii
+                    filo = os.path.join(out_split_int_folder, base + "_" + in_label +"_"+ suffix + ".pix")
+                    print ("   Output file-->" + filo)
+                    cinterp = interp_type
+                    dboc = []
+
+                    dbiw =	[]
+                    dbic =	[in_chan]
+                    dbib =	[]
+                    dbvs =	[2]
+                    dblut =	[]
+                    dbpct =	[]
+                    ftype =	"PIX"
+                    foptions = ""
+
+                    if os.path.exists(filo):
+                        print ("File already exist - skip")
+                    else:
+                        try:
+                            fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
+                        except PCIException as e:
+                            print(e)
+                        except Exception as e:
+                            print(e)
+                        chan = chan + 1
+            '''                    
             count = count + 1
 
-    elif interp_type == "amp":
+    
+    #-------------------------------------------------------------------------------------------------------------------------
+    # C) Converting the complex channels to amplitude (coherence layers)
+    elif interp_type == "amp":   # producing the coherence layer
         count = 1
         for ii in file_to_process:
 
@@ -750,3 +841,26 @@ def check_YYYYMMDD (date_YYYYMMDD, variable_name):
             else:
                 print ("")  # day and month are ok.
     return ()
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+def get_folder_proctime_and_size (folder_path, proc_stop_time, proc_start_time):
+    total_size_bytes = sum(
+        os.path.getsize(os.path.join(dirpath, file))
+        for dirpath, _, files in os.walk(folder_path)
+        for file in files
+        if os.path.isfile(os.path.join(dirpath, file))
+    )
+    size_mb = str(round(total_size_bytes / (1024 * 1024),4))
+    time_sec = str (round((proc_stop_time - proc_start_time), 2))
+    
+   
+    input_files_list = []
+    for keyword in ["*.pix", "*.txt", "*.log"]:
+        for root, dirs, files in os.walk(folder_path):
+            for filename in fnmatch.filter(files, keyword):
+                input_files_list.append(os.path.join(root, filename))
+   
+    total_files = str(len(input_files_list))
+
+    out_folder_time_size= (";" + time_sec + ";" + size_mb + ";" + total_files)
+    return out_folder_time_size
