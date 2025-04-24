@@ -13,34 +13,34 @@ https://cupy.dev/
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
 #input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_coh_stack_statistics.txt"
-input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_int_stack_statistics.txt"
+input_stack_statistics_file = r"D:\QC03M_7224_4504\6_Output_stack_lists\QC03M_7224_4504_RH_int_stack_statistics.txt"
 prefix = ""                                # optionnal, leave blank for no prefix
 no_data_value = -32768.0000
 
 #B.1) Time series preparation and data stacking
 stacking_method = "catalyst"             # Valid option are "numpy or "catalyst"
-output_type = 2                       # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
+output_type = 2                          # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
 # B.2) Filtering and mask options
-apply_masking = "no"       # Valid option are "yes" or "no"
+apply_masking = "yes"       # Valid option are "yes" or "no"
 mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
-mask_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\TSA_OTT_mask_UTM18T_D000.pix"
+mask_file = r"\\W-BSC-A157283\share_GG\CanUS_border_1m_UTM18T_D000_v4_2km_buffer.pix"
 mask_seg_number = [2]
+
 apply_mean_filter = "yes"               # Valid option are "yes" or "no"
 filter_size_X_Y = [3,3]                 # Tuple of odd integer
 
 # B.3) Apply  Min / Max bounds
-apply_min_max_bounds = "yes"
-min_floor = 0
-max_floor = 1
+apply_min_max_bounds = "no"
+min_floor = 0.0
+max_floor = 1.5
 reassign_type = "to_min_max"            # Options are "to_no_data" or "to_min_max"
 
 
 #C) Other options
 # Generate overviews - either yes or no,
 generate_overviews = "yes"
-# keep or delete intermediate files - either yes or no. No is recommended.
-delete_intermediary_files = "no"
+
 
 # -----------------------------------------------------------------------------------------------------
 #  Scripts -  Notes.
@@ -59,7 +59,6 @@ delete_intermediary_files = "no"
     The two stackling methond will give the same results. 
    
 '''
-
 # -----------------------------------------------------------------------------------------------------------------
 #  Imports
 # -----------------------------------------------------------------------------------------------------------------
@@ -108,7 +107,7 @@ py1 = str(sys.version_info[0])
 py2 = str(sys.version_info[1])
 py3 = (py1 + "." + py2)
 python_version = float(py3)
-if python_version < 3.6:
+if python_version < 2.1:
     print("You are using Python v" + str(python_version))
     print("You need to update to Python 3.6 or newer versions")
     sys.exit()
@@ -213,6 +212,7 @@ if generate_overviews in yes_validation_list:
 else:
     generate_overviews = False
 
+
 # D) Creating the output folder and the output file name.  
     # Note: In anticipation for full automatation, we will create automatically the output folder and 
     # the output file name.      
@@ -303,17 +303,61 @@ print("\t")
 files_list = input_file_list
 file_size_check (files_list)
 
-# -----------------------------------------------------------------------------------------------------------------
-#                                             Creating the Data stack  
-# -----------------------------------------------------------------------------------------------------------------
 
 print("\t")
 print ('----------------------------------------------------------------------------------------------------------')
-print("                                    Creating the Data stack                                                ")
+print("                                      Stack data preprocessing                                             ")
 print ('----------------------------------------------------------------------------------------------------------')
 print("\t")
+
+# -----------------------------------------------------------------------------------------------------------------
+nb_files = str(len(input_file_list))    
+count  = 1
+if apply_mean_filter is True:
+    print ("Stack data preprocessing - Average filtering option is selected. Average filter size: " + str (filter_size_X_Y[0]) +
+            "x" + str (filter_size_X_Y[1]))
+
+    for ii in input_file_list: 
+        print("   " + time.strftime("%H:%M:%S") + " Filtering file " + str(count) + " of " + str(nb_files))
+        file = ii
+        dbic = [1]  
+        dboc = [1]  
+        flsz = [filter_size_X_Y[0], filter_size_X_Y[1]]
+        mask = []  
+        bgrange = []  
+        failvalu = []  # no failure value
+        bgzero = ''  # default, set background to zero
+
+        try:
+            fav(file, dbic, dboc, flsz, mask, bgrange, failvalu, bgzero)
+        except PCIException as e:
+            print(e)
+        except Exception as e:
+            print(e)
+        count = count + 1
+
+# -----------------------------------------------------------------------------------------------------------------
+if apply_min_max_bounds is True:
+    print ("\t")
+    print("Stack data preprocessing - Minimum and maximum bounds option is selected")
+    input_stack = input_file_list
+    stack_min_max (input_stack, no_data_value, min_floor, max_floor, reassign_type)
+if apply_min_max_bounds is False:
+    print("No min max requested")
+
+# -----------------------------------------------------------------------------------------------------------------
+if apply_masking is True:
+    print("Stack data preprocessing - Applying the exclusion or inclusion vector mask")
+    input_stack = input_file_list
+    stack_masking(input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder)
+if apply_masking is False :
+    print(time.strftime("%H:%M:%S") + " Stack preparation - Exclusion or inclusion mask not requested")
+
+print("\t")
+  
+
 #------------------------------------------------------------------------------------------------------------------
-# SOLUTION USING NUMPY
+# STACKING METHOD USING NUMPY
 #------------------------------------------------------------------------------------------------------------------
 if use_numpy is True: 
 
@@ -382,56 +426,13 @@ if use_numpy is True:
     print('----------------------------------------------------------------------------------------------------------')
     print("\t")
 
-    if apply_mean_filter is True:
-        print ("\t")
-        print (time.strftime("%H:%M:%S") + " Stack preparation - Average filtering with a (X-Y) " +
-               str (filter_size_X_Y[0]) + "x" + str (filter_size_X_Y[1]) + " filter")
-
-        max_chan = len (mid_date_list)
-        count = 1
-        for ii in range (1, max_chan + 1):
-            print("   " + time.strftime("%H:%M:%S") + " Filtering channel " + str(count) + " of " + str(max_chan))
-            file = copy_out_data
-            dbic = [ii]  
-            dboc = [ii]  
-            flsz = [filter_size_X_Y[0], filter_size_X_Y[1]]
-            mask = []  
-            bgrange = []  
-            failvalu = []  # no failure value
-            bgzero = ''  # default, set background to zero
-
-            try:
-                fav(file, dbic, dboc, flsz, mask, bgrange, failvalu, bgzero)
-            except PCIException as e:
-                print(e)
-            except Exception as e:
-                print(e)
-            count = count + 1
-
+    
     # -------------------------------------------------------------------------------------------------------------
     # Apply_masking if needed and assign to do NoDataValue.
     #  if the mask is set with inclusion, we need to set the pixels outside the mask with No_data
     # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
-    print("\t")
-    print("\t")
-    if apply_min_max_bounds is True:
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Minimum and maximum bounds requested")
-        input_stack = copy_out_data
-        stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
-    if apply_min_max_bounds is False:
-        print("No min max requested")
+   
 
-    print("\t")
-    print("\t")
-    if apply_masking is True:
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Applying the exclusion or inclusion vector mask")
-        input_stack = copy_out_data
-        stack_masking(input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder)
-    if apply_masking is False :
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Exclusion or inclusion mask not requested")
-
-    print("\t")
-  
     # -------------------------------------------------------------------------------------------------------------
     # Renaming the channels according to the mid date and creating a metadata of the same name.
     print("\t")
@@ -473,10 +474,10 @@ if use_numpy is True:
     with ds.open_dataset(copy_out_data) as ds9:
 
         print(time.strftime("%H:%M:%S") + " Stack to process: " + copy_out_data)
-        reader=ds.BasicReader(ds9)
+        reader = ds.BasicReader(ds9)
         # read the raster channels
         raster = reader.read_raster(0, 0, reader.width, reader.height)
-        num_channels=ds9.chan_count
+        num_channels = ds9.chan_count
         #print (num_channels)
         ref_crs = ds9.crs                # coordinate system
         ref_geocoding = ds9.geocoding    # Geocoding
@@ -612,7 +613,7 @@ if use_numpy is True:
         os.rename(out_tsa_analysis_pix, new_tsa_analysis_name)
         os.remove (copy_out_data)
 #------------------------------------------------------------------------------------------------------------------------
-# SOLUTION USING CATALYST
+# STACKING METHOD USING CATALYST
 #------------------------------------------------------------------------------------------------------------------------
 if use_catalyst is True: 
     print(time.strftime("%H:%M:%S") + " Selected stacking method is CATALYST")
@@ -683,25 +684,9 @@ if use_catalyst is True:
 
     if os.path.exists(temp_mfile):
         os.remove(temp_mfile)
-    
-    # -------------------------------------------------------------------------------------------------------------
-    # Apply_masking if needed and assign to do NoDataValue.
-    #  if the mask is set with inclusion, we need to set the pixels outside the mask with No_data
-    # if the mask is set with exclusion, we need to set the pixels inside the mask with No_data
-    print("\t")
-    if apply_min_max_bounds is True:
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Apply minimum and maximum bounds")
-        input_stack = filo
-        stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type)
-    print("\t")
-    print("\t")
-    if apply_masking is True:
-        print(time.strftime("%H:%M:%S") + " Stack preparation - Applying the exclusion or inclusion vector mask")
-        input_stack = filo
-        stack_masking(input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder)
-    print("\t")
-
+    # -----------------------------------------------------------------------------------------------------------------
     # Split the TSA data analysis and the TSA data stack
+
     if output_type == 3: 
       
         # First we export the fourteen first layers to create the idependent data analysis file. 

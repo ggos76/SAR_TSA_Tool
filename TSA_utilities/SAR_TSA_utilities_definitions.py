@@ -632,148 +632,144 @@ def file_size_check (files_list):
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder):
 
-    print ("   Mask type selected " + mask_type)
-    fili = mask_file
-    dbvs = mask_seg_number  # polygon layer
-    filo = input_stack
-    dbsd = ''
-    pixres = []
-    ftype = "PIX"  # output format type
-    foptions = ""  # output options
+    
+    # First we create the EASI model that will be use for all the input_files. 
+    output_model_file = []
+    chan = '%1'
+    no_data = str(no_data_value)
 
-    poly2bit(fili, dbvs, filo, dbsd, pixres, ftype, foptions)
+    if mask_type == "inclusion":
+        string1 = ("if %%2 = 1 then")
+        output_model_file.append(string1)
+        string1 = (chan + " = " +  chan)
+        output_model_file.append(string1)
+        string1 = ("else")
+        output_model_file.append(string1)
+        string1 = (chan + " = " + no_data)
+        output_model_file.append(string1)
+        string1 = ("endif")
+        output_model_file.append(string1)
 
-    with ds.open_dataset(input_stack) as ds1:
-        num_channels = ds1.chan_count
-        print ("   There are " + str(num_channels) + " channels in the input stack")
+        file_name = ("model_inclusion_mask_for_channel.txt")
+
+    if mask_type == "exclusion":
+        string1 = ("if %%2 = 1 then")
+        output_model_file.append(string1)
+        string1 = (chan + " = " + no_data)
+        output_model_file.append(string1)
+        string1 = ("else")
+        output_model_file.append(string1)
+        string1 = (chan + " = " +  chan)
+        output_model_file.append(string1)
+        string1 = ("endif")
+        output_model_file.append(string1)
+
+        file_name = ("model_exclusion_mask_for_channel.txt")
+
+    output_folder_model = os.path.dirname(input_stack[0])
+    file_model = os.path.join(output_folder_model, file_name)
+    with open(file_model, "w") as f:
+        f.write("\n".join(output_model_file))
 
 
+    
+    nb_files = str(len(input_stack))
     count = 1
-    for input_chan in range (1,num_channels +1):
+    for ii in input_stack:
+        print ("   " + time.strftime("%H:%M:%S") + " Masking file " + str(count) + " of " + nb_files) 
+        
+        fili = mask_file
+        dbvs = mask_seg_number  # polygon layer
+        filo = ii
+        dbsd = ''
+        pixres = []
+        ftype = "PIX"  # output format type
+        foptions = ""  # output options
 
-        out_print = (("   " + (time.strftime("%H:%M:%S")) + " Masking channel " + str(count) + " of " + str(num_channels)))
-        sys.stdout.write("\r" + out_print)
-        sys.stdout.flush()
+        poly2bit(fili, dbvs, filo, dbsd, pixres, ftype, foptions)
 
-        output_model_file = []
-
-        if mask_type == "inclusion":
-            string1 = ("if %%2 = 1 then")
-            output_model_file.append(string1)
-            string1 = ("%" + str(input_chan) +"= %" + str(input_chan))
-            output_model_file.append(string1)
-            string1 = ("else")
-            output_model_file.append(string1)
-            string1 = ("%" + str(input_chan) +"=" + str(no_data_value))
-            output_model_file.append(string1)
-            string1 = ("endif")
-            output_model_file.append(string1)
-
-            file_name = ("model_inclusion_mask_for_channel_" + str(input_chan) + ".txt")
-
-        if mask_type == "exclusion":
-            string1 = ("if %%2 = 1 then")
-            output_model_file.append(string1)
-            string1 = ("%" + str(input_chan) +"=" + str(no_data_value))
-            output_model_file.append(string1)
-            string1 = ("else")
-            output_model_file.append(string1)
-            string1 = ("%" + str(input_chan) +"= %" + str(input_chan))
-            output_model_file.append(string1)
-            string1 = ("endif")
-            output_model_file.append(string1)
-
-            file_name = ("model_exclusion_mask_for_channel_" + str(input_chan) + ".txt")
-
-        file_model = os.path.join(output_folder, file_name)
-        with open(file_model, "w") as f:
-            f.write("\n".join(output_model_file))
-
-        file = input_stack
+        file = ii
         source = file_model
         undefval = []
-
         try:
-            model (file, source, undefval)
+            model(file, source, undefval)
+        except PCIException as e:
+            print(e)
+        except Exception as e:
+            print(e)
+
+        count = count + 1
+    os.remove(file_model)
+    return ()
+# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+def stack_min_max (input_stack, no_data_value, min_floor, max_floor, reassign_type):
+
+    # First we create the EASI model that will be use for all the input_files. 
+    output_model_file = []
+    chan = '%1'
+    no_data = str(no_data_value)
+    min_floor = str(min_floor)
+    max_floor = str(max_floor)
+
+    if reassign_type == "to_no_data":
+        string1 = ("if " + chan + "<= " + min_floor + " then")
+        output_model_file.append(string1)
+        string1 = (chan + " = " + no_data)
+        output_model_file.append(string1)
+        string1 = "endif"
+        output_model_file.append(string1)
+        string1 = ("if " + chan + ">= " + str(max_floor) + " then")
+        output_model_file.append(string1)
+        string1 = (chan +  " = " + no_data)
+        output_model_file.append(string1)
+        string1 = "endif"
+        output_model_file.append(string1)
+
+        file_name = ("model_min_max_floor_to_nodata_channel.txt")
+
+    if reassign_type == "to_min_max":
+        string1 = ("if " + chan + "<>" + no_data + " and " + chan + " <=" + min_floor + " then")
+        output_model_file.append(string1)
+        string1 = (chan + " = " + min_floor)
+        output_model_file.append(string1)
+        string1 = "endif"
+        output_model_file.append(string1)
+        string1 = ("if " + chan + "<>" + no_data + " and " + chan + " >=" + max_floor + " then")
+        output_model_file.append(string1)
+        string1 = (chan + " = " + str(max_floor))
+        output_model_file.append(string1)
+        string1 = "endif"
+        output_model_file.append(string1)
+
+        file_name = ("model_min_max_floor_to_min_max_channel.txt")
+
+    output_folder_model = os.path.dirname(input_stack[0])
+
+    file_model = os.path.join(output_folder_model, file_name)
+    with open(file_model, "w") as f:
+        f.write("\n".join(output_model_file))
+  
+    nb_file = str(len(input_stack))
+    count = 1
+    for ii in input_stack: 
+        print ("   " + time.strftime("%H:%M:%S") + " Applying min-max floor, file " + str (count)  + " of " + nb_file)
+        file = ii
+        source = file_model
+        undefval = []
+        
+        try:
+            model(file, source, undefval)
         except PCIException as e:
             print(e)
         except Exception as e:
             print(e)
         count = count + 1
-        os.remove(file_model)
+    
+    os.remove(file_model)
+      
     return ()
-# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-def stack_min_max (input_stack,no_data_value, min_floor, max_floor, output_folder, reassign_type):
-
-    with ds.open_dataset(input_stack) as ds1:
-        num_channels = ds1.chan_count
-        '''
-        # Could be the optimal solution with numpy, to be rewritten later
-        arr = input raster channel de PCI
-        np.place (arr, arr == 0, -10)
-        np.place(arr, arr <= min_floor and arr != no_data_value, min_floor)
-        np.place(arr, arr <= min_floor and arr != no_data_value, no_data_value)
-        np.place(arr, min_floor == 0, no_data_value)
-        '''
-        count = 1
-        for input_chan in range(1, num_channels + 1):
-
-            out_print = (("   " + (time.strftime("%H:%M:%S")) + " Applying min/max floor to channel " + str(count) + " of " + str(num_channels)))
-            sys.stdout.write("\r" + out_print)
-            sys.stdout.flush()
-
-            output_model_file = []
-
-            if reassign_type == "to_no_data":
-                string1 = ("if %" + str(input_chan) + "<= " + str(min_floor) + " then")
-                output_model_file.append(string1)
-                string1 = ("%" + str(input_chan) + " = " + str(no_data_value))
-                output_model_file.append(string1)
-                string1 = "endif"
-                output_model_file.append(string1)
-                string1 = ("if %" + str(input_chan) + ">= " + str(max_floor) + " then")
-                output_model_file.append(string1)
-                string1 = ("%" + str(input_chan) + " = " + str(no_data_value))
-                output_model_file.append(string1)
-                string1 = "endif"
-                output_model_file.append(string1)
-
-                file_name = ("model_min_max_floor_to_nodata_channel_" + str(input_chan) + ".txt")
-
-            if reassign_type == "to_min_max":
-                string1 = ("if %" + str(input_chan) + "<= " + str(min_floor) + " then")
-                output_model_file.append(string1)
-                string1 = ("%" + str(input_chan) + " = " + str(min_floor))
-                output_model_file.append(string1)
-                string1 = "endif"
-                output_model_file.append(string1)
-                string1 = ("if %" + str(input_chan) + ">= " + str(max_floor) + " then")
-                output_model_file.append(string1)
-                string1 = ("%" + str(input_chan) + " = " + str(max_floor))
-                output_model_file.append(string1)
-                string1 = "endif"
-                output_model_file.append(string1)
-
-                file_name = ("model_min_max_floor_to_min_max_channel_" + str(input_chan) + ".txt")
-
-            file_model = os.path.join(output_folder, file_name)
-            with open(file_model, "w") as f:
-                f.write("\n".join(output_model_file))
-
-            file = input_stack
-            source = file_model
-            undefval = []
-
-            try:
-                model(file, source, undefval)
-            except PCIException as e:
-                print(e)
-            except Exception as e:
-                print(e)
-            count = count + 1
-            os.remove(file_model)
-    return ()
+    
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def date_formater (input_date):
 
