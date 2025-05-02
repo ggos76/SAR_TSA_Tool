@@ -8,42 +8,41 @@
 # -----------------------------------------------------------------------------------------------------------------
 
 # A) Input/Output
-Coregistered_Pairs_Report = r"E:\RCMP_RCM\QC03M_7262_4500\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
-output_folder = r"E:\RCMP_RCM\QC03M_7262_4500"
+Coregistered_Pairs_Report = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
+output_folder = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500"
 prefix = "QC03M_7262_4500"
-
 
 # B) Filtering options / Filtering is mandatory for Compact Pol analysis
 filter_type = "psboxcar"          # options are psboxcar or pspolfil
 filter_size_X_Y = [9,9]           # PSPOLFIL is always square, only the X value will be used. 
 
-
 # C) Time-series creation. Compact Pol discriminators to stack. Look at the Part 2: Notes section for more information. 
 CPDIS_to_stack = [10, 11]
 produce_CPDIS_RGB = "yes"           # valid options are "yes" or "no"
 
-apply_masking = "yes"       # Valid option are "yes" or "no"
+apply_masking = "no"       # Valid option are "yes" or "no"
 mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
 mask_file = r"\\W-BSC-A157283\share_GG\CanUS_border_1m_UTM18T_D000_v4_2km_buffer.pix"
 mask_seg_number = [2]
 
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
-DEM_file = r"D:\RCMP_prj_overviews\aux_files\QC\DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"C:\Users\ggosseli\Desktop\DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 ortho_bounds_option = 1
-AOI_vector_file = r"D:\RCMP_data_RCM\stacks\AOI_stack_QC03M_7262_4500_ASC_UTM18TD000_data_ingest.pix"
+AOI_vector_file = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\AOI_stack_QC03M_7262_4500_ASC_UTM18TD000.pix"
 AOI_segment_number = 2
 
 ortho_resolution_X = "2"
 ortho_resolution_Y = "2"
 
 # E) General options
-# Generate overviews - either yes or no,
-generate_overviews = "yes"
-# keep or delete intermediate files - either yes or no. No is recommended.
-delete_intermediary_files = "no"
+generate_overviews = "yes"         #either "yes" or "no"
+delete_intermediary_files = "no"   #either "yes" or "no"
+
+# Behaviour when output file exists 
+if_file_exists = "skip"     # Valid options are "skip" or "regenerate"
 
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 2: Notes
@@ -62,6 +61,17 @@ delete_intermediary_files = "no"
    [9]  Coherence 
    [10] Entropy 
    [11] Alpha angle 
+
+   2) Behaviour when output file exists
+       Warning - if_file_exists = "skip"  is a usefull feature for debugging or to (re) generate a subsequent product 
+            in the processing chain without having to regenerate good files, for example when a stack is to be
+            regenerated with an exclusion mask or a different filter size. However, missing (or deleted) intermediary 
+            files when the final product exists will cause the final product to be outdated regarding the newest 
+            regenerated files. 
+       
+                 if_file_exists = "regenerate" is a more secure option. 
+   
+    3) Overviews won't be generated for intermediary files when delete_intermediary_files = "no"    
     
  '''
 # -----------------------------------------------------------------------------------------------------------------
@@ -71,6 +81,7 @@ import sys
 import os
 import fnmatch
 import time
+import shutil
 import locale
 import re
 from tracemalloc import start
@@ -89,14 +100,12 @@ from pci.api import datasource as ds
 from pci.api.cts import crs_to_mapunits
 
 from TSA_utilities.SAR_TSA_utilities_definitions import ortho_run
-from TSA_utilities.SAR_TSA_utilities_definitions import create_list
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
 from TSA_utilities.SAR_TSA_utilities_definitions import file_size_check
 from TSA_utilities.SAR_TSA_utilities_definitions import stack_masking
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
-
 
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 4: Parameters validation
@@ -123,7 +132,7 @@ py1 = str(sys.version_info[0])
 py2 = str(sys.version_info[1])
 py3 = (py1 + "." + py2)
 python_version = float(py3)
-if python_version < 3.8:
+if python_version < 2.0:
     print("You are using Python v" + str(python_version))
     print("You need to update to Python 3.8 or newer versions")
     sys.exit()
@@ -145,7 +154,6 @@ filter_size_X = filter_size_X_Y[0]
 filter_size_Y = filter_size_X_Y[1] 
     
 # Check for odd and positive numbers
-
 '''
         if filter_size < 5:
             print("Error - The Filter window size must be an odd integer greater or equal to 5")
@@ -196,9 +204,9 @@ for item in CPDIS_to_stack:
 CP_chans_labels = ["degpol","degcirpol","deglinpol","cpr","lpr","orientation","ellipticity","relphase","coherency","entropy","alpha"]
 produce_CPDIS_RGB = produce_CPDIS_RGB.lower()
 if produce_CPDIS_RGB in yes_validation_list: 
-    produce_CPDIS_RGB is True
+    produce_CPDIS_RGB = True
 elif produce_CPDIS_RGB in no_validation_list: 
-    produce_CPDIS_RGB is False
+    produce_CPDIS_RGB = False
 else: 
     print ('Error - The produce_CPDIS_RGB parameter valid options are "yes" or "no"')
     sys.exit()
@@ -213,7 +221,6 @@ if ortho_bounds_option == 1:
 elif ortho_bounds_option == 2:
     print("The output ortho bounds will be taken from each input images")
 else:
-
     print("Error - The ortho bounds option is not valid")
     print("Valid options are 1 or 2")
     sys.exit()
@@ -235,11 +242,17 @@ if not os.path.exists(DEM_file):
     print ("Error - The DEM_file does not exist or the path/filename is wrong.")
     sys.exit()
 
-
 # -----------------------------------------------------------------------------------------------------------------
-# E) Check for scene size conformity (size and matrix type). 
+# E) General options
+#    Check for scene size conformity (size and matrix type). 
+if if_file_exists.lower() not in ["skip","regenerate"]:     
+    print('Error - valid options for existing_data are "skip" or "regenerate"')
+    sys.exit()
+else: 
+    info_message_skip = ("   output file already exists - skip (if_file_exists = skip)")
+    info_message_regn =  ("   output file already exists - regenerate (if_file_exists = regenerate)")
+ 
 Fld_Coregistration = os.path.dirname(Coregistered_Pairs_Report)
-
 Coregistered_Pairs_Report
 
 input_scenes_list = []
@@ -269,6 +282,23 @@ for ii in input_scenes_list:
             print ("Errror - The input scene mush have exactly 2 channels")
             sys.exit()
 
+generate_overviews = generate_overviews.lower()
+if generate_overviews in yes_validation_list: 
+    generate_overviews = True
+elif generate_overviews in no_validation_list: 
+    generate_overviews = False
+else: 
+    print ('Error - The generate_overviews parameter must be set with "yes" or "no"')
+    sys.exit()
+
+delete_intermediary_files = delete_intermediary_files.lower()
+if delete_intermediary_files in yes_validation_list: 
+    delete_intermediary_files = True
+elif delete_intermediary_files in no_validation_list: 
+    delete_intermediary_files = False
+else: 
+    print ('Error - The delete_intermediary_files parameter must be set with "yes" or "no"')
+    sys.exit()
 
 # Creating the ouput folder, we will add automatically a subfolder
 Fld_CPOL = os.path.join (output_folder, "5_1_1_compactpol")
@@ -279,74 +309,122 @@ Fld_CPOL_ortho = os.path.join (output_folder, "5_1_2_compactpol_ortho")
 if not os.path.exists(Fld_CPOL_ortho):
     os.makedirs(Fld_CPOL_ortho)
 
+# All validations have suceeded, a time log file is open.
+script3_procTime = os.path.join(output_folder, prefix + "TSA_script3_CPOL_processingTime.txt")
+time_log = open(script3_procTime, "w")
+
+current_time =  time.localtime()
+string_0 = time.strftime("%Y-%m-%d", current_time)
+time_log.write("%s\n" % string_0)
+
+string_0 = ("Process;proc.time (secs);Data size (MB);Number of files")
+time_log.write("%s\n" % string_0)
+
+val_stop = time.time()
+string_1 = "Validation: ;" + str (round((val_stop - val_start), 2)) 
+time_log.write("%s\n" % string_1)
 
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 5: Main program
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------
+proc_start_time = time.time()
 print("\t")
 print("----------------------------------------------------------------------------------------------------------")
-print("                               Input CP scenes filtering  and CP parameters generations                   ")
+print("                              Input CP scenes filtering  and CP parameters generation                     ")
 print("----------------------------------------------------------------------------------------------------------")
 print("\t")
+
 outfiles_pscomdis = []
 nb_files = str(len(input_scenes_list))
 count = 1
 for ii in input_scenes_list: 
+
+    with ds.open_dataset(ii, ds.eAM_READ) as ds5:
+        aux = ds5.aux_data
+        Acquisition_DateTime = aux.get_file_metadata_value("Acquisition_DateTime")
+
     print("\t")
-    print(time.strftime("%H:%M:%S") + " Filtering file " + str(count) + " of " + nb_files)
-    print ("   Input file -->" + ii)
+    print(time.strftime("%H:%M:%S") + "  Processing file " + str(count) + " of " + nb_files)
+    print (" input file--> " + ii)
+    print ("   filtering the input file")
     fili = ii
 
-    # Remove the coreg* part
+    # Remove the prefix  coreg* for cleaner ouput names
     base_out = os.path.basename(ii[:-4])
-
     index = base_out.find(prefix)
     if index == -1:
         print ("   prefix not found within the file name, will use the full name instead")
     else:
         base_out = base_out[index:]
 
-
+    # Applying a filter 
     if filter_type == "psboxcar":  
         
         out_f = ("_psboxcar_" + str(filter_size_X) +"x"+ str(filter_size_Y))
         filo = os.path.join (Fld_CPOL, base_out + out_f + ".pix")
         flsz = filter_size_X_Y
-        try: 
-            psboxcar (fili, filo, flsz)
-        except PCIException as e:
-             print(e)
-        except Exception as e:
-            print(e)   
+
+        print ("   output file--> " + filo)
+        if os.path.exists (filo) and if_file_exists == "skip": 
+            print (info_message_skip)
+        else: 
+            if os.path.exists (filo) and if_file_exists == "regenerate": 
+                print (info_message_regn)
+                os.remove (filo)
+            
+            print ("   Filtering the file")
+            try: 
+                psboxcar (fili, filo, flsz)
+            except PCIException as e:
+                    print(e)
+            except Exception as e:
+                print(e)   
 
     if filter_type == "pspolfil": 
         out_f = ("_pspolfil_" + str(filter_size_X) +"x"+ str(filter_size_X))
         filo = os.path.join (Fld_CPOL, base_out + out_f + ".pix")
         flsz = filter_size_X_Y[0]
         nlook = [1]
-        try: 
-            pspolfil (fili, filo, flsz, nlook)
-        except PCIException as e:
-             print(e)
-        except Exception as e:
-            print(e)  
 
-    print ("   output file-->" + filo)
+        print (" output file--> " + filo)
+        if os.path.exists (filo) and if_file_exists == "skip": 
+            print (info_message_skip)
+        else: 
+            if os.path.exists (filo) and if_file_exists == "regenerate": 
+                print (info_message_regn)
+                os.remove (filo)
+
+            print ("   Filtering the file")
+            try: 
+                pspolfil (fili, filo, flsz, nlook)
+            except PCIException as e:
+                 print(e)
+            except Exception as e:
+                print(e)  
     iii_input = filo
 
-    print ("   " + time.strftime("%H:%M:%S") + " Generating the compact pol discriminator")
+    # Use PSCOMDIS to generate the compact pol parameters
+    print ("   " + time.strftime("%H:%M:%S") + " Generating the Compact Pol parameters")
     fili = filo
     base_out = os.path.basename(filo[:-4])
     filo = os.path.join (Fld_CPOL, base_out + "_pscomdis.pix")
     angletyp = "Degrees"
-    try: 
-       pscomdis (fili, filo, angletyp)
-    except PCIException as e:
-            print(e)
-    except Exception as e:
-        print(e)  
+    
+    print ("   output file--> " + filo)
+    if os.path.exists (filo) and if_file_exists == "skip": 
+        print (info_message_skip)
+    else: 
+        if os.path.exists (filo) and if_file_exists == "regenerate": 
+            print (info_message_regn)
+            os.remove (filo)
+        try: 
+           pscomdis (fili, filo, angletyp)
+        except PCIException as e:
+                print(e)
+        except Exception as e:
+            print(e)  
     
     outfiles_pscomdis.append(filo)
     iii_output = filo
@@ -363,15 +441,27 @@ for ii in input_scenes_list:
     except Exception as e:
         print(e)  
 
+    with ds.open_dataset(iii_output, ds.eAM_WRITE) as ds6:
+        aux = ds6.aux_data
+        metadata = aux.file_metadata
+        metadata["Acquisition_DateTime"] = Acquisition_DateTime
+        aux.file_metadata = metadata
+        ds6.aux_data = aux
+
     count = count + 1
 
+proc_stop_time = time.time()
+folder = Fld_CPOL
+out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+string_1 = ("CompactPol parameters, files filtering and parameters generation: " + out_folder_time_size) 
+time_log.write("%s\n" % string_1)
 
 print("\t")
 print("-------------------------------------------------------------------------------------------------------")
 print("                               Compact pol discriminators orthorectification                           ")
 print("-------------------------------------------------------------------------------------------------------")
 print("\t")
-
+proc_start_time = time.time()
 if ortho_bounds_option == 1:   # extends from the AOI file
 
     print(time.strftime("%H:%M:%S") + " Extracting the bounding box coordinate around the input AOI")
@@ -465,40 +555,41 @@ for input_scene in files_to_ortho_list:
     sampling = [1]
     resample = "near"
 
-    print("   Output file: " + filo)
-    if os.path.exists(filo):
-        print ("File already exist - skip")
-    else:
-        # pyramids options
-        file = filo
-        force = 'yes'
-        poption = 'aver'
-        dboc = []
-        olevels = []
-
+    print("   output orthorectified file: " + filo)
+    if os.path.exists (filo) and if_file_exists == "skip": 
+        print (info_message_skip)
+    else: 
+        if os.path.exists (filo) and if_file_exists == "regenerate": 
+            print (info_message_regn)
+            os.remove (filo)
         try:
             ortho(mfile, dbic, mmseg, dbiw, srcbgd, filo, ftype, foptions, outbgd,
                     ulx, uly, lrx, lry, edgeclip, tipostrn, mapunits, bxpxsz, bypxsz, filedem,
                     dbec, backelev, elevref, elevunit, elfactor, proc, sampling, resample)
-            if generate_overviews is True:
-                pyramid(file, dboc, force, olevels, poption)
+            if generate_overviews is True and delete_intermediary_files is False:
+                print ("   Generating file overviews")
+                pyramid(file = filo, dboc = [], force = "yes", olevels = [], poption= "aver")
 
         except PCIException as e:
             print(e)
         except Exception as e:
-            print(e)
-        print("   Output orthorectified file: " + filo)
-        CP_ortho_list.append(filo)
+            print(e)  
+    CP_ortho_list.append(filo)
     count = count + 1
 
+proc_stop_time = time.time()
+folder = Fld_CPOL_ortho
+out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+string_1 = ("CompactPol scenes orthorectification: " + out_folder_time_size) 
+time_log.write("%s\n" % string_1)
 
 
 print("\t")
 print("-------------------------------------------------------------------------------------------------------")
-print("                               Compact pol discriminators Time series                                  ")
+print("                       Time series creation for selected Compact Pol parameters                        ")
 print("-------------------------------------------------------------------------------------------------------")
 print("\t")
-
+proc_stop_time = time.time()
 
 if apply_masking is True:
     print("Stack data preprocessing - Applying the exclusion or inclusion vector mask")
@@ -507,12 +598,10 @@ if apply_masking is True:
 if apply_masking is False :
     print(time.strftime("%H:%M:%S") + " Stack preparation - Exclusion or inclusion mask not requested")
 
-
-
 # Creating the ouput folder
 Fld_TSA_stacks = os.path.join (output_folder, "7_TSA_stacks")
-if not os.path.exists(Fld_CPOL_ortho):
-    os.makedirs(Fld_CPOL_ortho)
+if not os.path.exists(Fld_TSA_stacks):
+    os.makedirs(Fld_TSA_stacks)
 
 # Create a temporary mfile
 temp_mfile = os.path.join(Fld_TSA_stacks, "temp_mfile_for_CP_data_ingestion.txt")
@@ -520,79 +609,80 @@ mfile_input = open(temp_mfile, "w")
 mfile_input.write('\n'.join(CP_ortho_list))
 mfile_input.close()
 
-
+nb_params = str(len(CPDIS_to_stack))
+count = 1
 for in_chan in CPDIS_to_stack:
-    
+    print ("\t")
+    print(time.strftime("%H:%M:%S") + " processing CP parameter " + str (count) + " of " + nb_params)
+    lab_index = in_chan - 1
+    label_out = CP_chans_labels[lab_index]
+
     mfile = temp_mfile
     dbic = [in_chan]
     mask = []
     maskfile = "" 
     stack  = "yes"
     flsz = []
-    filo = os.path.join
+    filo = os.path.join (Fld_TSA_stacks, prefix + "_" + label_out + ".pix")
 
+    print("   output stack-->" + filo)
+    if os.path.exists (filo) and if_file_exists == "skip": 
+        print (info_message_skip)
+    else: 
+        if os.path.exists (filo) and if_file_exists == "regenerate": 
+            print (info_message_regn)
+            os.remove (filo)
     try: 
         pssartsa(mfile, dbic, mask, maskfile, stack, flsz, filo)
+        if generate_overviews is True:
+            pyramid(file = filo, dboc = [], force = "yes", olevels = [], poption= "aver")
     except PCIException as e:
         print(e)
     except Exception as e:
         print(e)
-
-
-
-CP_chans_labels[]
-
-
-
-
-
-
+    count = count + 1
 
 os.remove(temp_mfile)
 
-
-
-'''
-
 proc_stop_time = time.time()
-folder = Fld_Output_stack_lists
+folder = Fld_TSA_stacks
 out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
-string_1 = ("Time series list preparation:" + out_folder_time_size) 
+string_1 = ("CompactPol stack generation: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
+# -------------------------------------------------------------------------------------------------------------
+# J) Deleting the intermediary files if requested
+# -------------------------------------------------------------------------------------------------------------
 
-# ------------------------------------------------------
-# J) Deleting intermediary files if requested
-# ---------------------------------------------------------
-
-if delete_intermediary_files in yes_validation_list:
+if delete_intermediary_files is True:
+    proc_start_time = time.time()
     print("\t")
-    print("--------------------------------------------------------------")
+    print("-------------------------------------------------------------------------------------------------------")
+    print("                                Deleting the intermediary files                                        ")
+    print("-------------------------------------------------------------------------------------------------------")
     print("\t")
-    print((time.strftime("%H:%M:%S")) + "  Deleting intermediary files")
+    
+    string1 = "Deleting intermediary files requested"
+    time_log.write("%s\n" % string1)
 
     del_folders_list = []
     # List of all (possible) folders to delete
-    del_folders_list.append(os.path.join(output_folder, "1_INSINFO"))
-    del_folders_list.append(os.path.join(output_folder, "2_SARINGESTAOI"))
-    del_folders_list.append(os.path.join(output_folder, "4_RAW"))
-    del_folders_list.append(os.path.join(output_folder, "5_DEFO"))
+    del_folders_list.append(os.path.join(output_folder, "5_1_2_compactpol_ortho"))
+    del_folders_list.append(os.path.join(output_folder, "5_1_1_compactpol"))
 
     for delete in del_folders_list:
         if os.path.isdir(delete):
-            print("deleting " + delete)
+            print(time.strftime("%H:%M:%S") + " Deleting " + delete)
             shutil.rmtree(delete)
 
 
-'''
 print("\t")
-print(" ------------------------------------------------------------------------------------------------------")
-print(" ------------------------------------------------------------------------------------------------------")
+print("-------------------------------------------------------------------------------------------------------")
 print((time.strftime("%H:%M:%S")))
 print("All processing completed")
 print("\t")
-TSA_03_stop = time.time()
 
+TSA_03_stop = time.time()
 ellapse_time_seconds = round((TSA_03_stop - TSA_03_start), 2)
 ellapse_time_minutes = round((ellapse_time_seconds / 60), 2)
 ellapse_time_hours = round((ellapse_time_seconds / 3600), 2)
@@ -601,7 +691,6 @@ print("Processing time (seconds): " + str(ellapse_time_seconds))
 print("Processing time (minutes): " + str(ellapse_time_minutes))
 print("Processing time (hours): " + str(ellapse_time_hours))
 
-
 string1 = "TSA_03 total processing time (secs):;" + str(ellapse_time_seconds)
 time_log.write("%s\n" % string1)
 string1 = "TSA_03 total processing time (mins):;" + str(ellapse_time_minutes)
@@ -609,4 +698,3 @@ time_log.write("%s\n" % string1)
 string1 = "TSA_03 total processing time hours):;" + str(ellapse_time_hours)
 time_log.write("%s\n" % string1)
 time_log.close()
-
