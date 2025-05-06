@@ -13,7 +13,7 @@ https://cupy.dev/
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
 #input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_coh_stack_statistics.txt"
-input_stack_statistics_file = r"D:\QC03M_7224_4504\6_Output_stack_lists\QC03M_7224_4504_RH_int_stack_statistics.txt"
+input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\QC03M_7171_4497\6_Output_stack_lists\QC03M_7171_4497_RH_coh_stack_statistics.txt"
 prefix = ""                                # optionnal, leave blank for no prefix
 no_data_value = -32768.0000
 
@@ -22,7 +22,7 @@ stacking_method = "catalyst"             # Valid option are "numpy or "catalyst"
 output_type = 2                          # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
 # B.2) Filtering and mask options
-apply_masking = "yes"       # Valid option are "yes" or "no"
+apply_masking = "no"       # Valid option are "yes" or "no"
 mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
 mask_file = r"\\W-BSC-A157283\share_GG\CanUS_border_1m_UTM18T_D000_v4_2km_buffer.pix"
 mask_seg_number = [2]
@@ -31,7 +31,7 @@ apply_mean_filter = "yes"               # Valid option are "yes" or "no"
 filter_size_X_Y = [3,3]                 # Tuple of odd integer
 
 # B.3) Apply  Min / Max bounds
-apply_min_max_bounds = "no"
+apply_min_max_bounds = "yes"
 min_floor = 0.0
 max_floor = 1.5
 reassign_type = "to_min_max"            # Options are "to_no_data" or "to_min_max"
@@ -680,7 +680,6 @@ if use_catalyst is True:
         olevels=[]
         poption = "AVER"
         pyramid( file, dboc, force, olevels, poption )
-
 
     if os.path.exists(temp_mfile):
         os.remove(temp_mfile)

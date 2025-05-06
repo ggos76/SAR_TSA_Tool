@@ -9,12 +9,12 @@
 # -----------------------------------------------------------------------------------------------------------------
 
 # A) Input/Output
-Coregistered_Pairs_Report = r"E:\RCMP_RCM\stack01_3MCP34_DESC\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
-output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
-prefix = "stk01_"
+Coregistered_Pairs_Report = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
+output_folder = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500"
+prefix = "QC03M_7262_4500_"
 
 # B) Elevation source
-DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"C:\Users\ggosseli\Desktop\DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 # C)  The channels to process for the time series (TSA) generation, can be a subset of the coregistered files channels
@@ -34,10 +34,10 @@ produce_intensity_layers = "yes"
 TSA_intensity_layers = [1, 2]    # Must be all subset of TSA_channel_mapping
 
 # C.4) Other intensity layers
-produce_incidence_angle_layer = "yes"
+produce_incidence_angle_layer = "no"
 
 # C.5) Other math layers from the intensity files
-produce_math_layers = "yes"               
+produce_math_layers = "no"               
 TSA_math_models_definition = r"C:\Users\ggosseli\source\repos\SAR_TSA_Tool\TSA_utilities\model_00_band_ratio.txt"
 TSA_math_xtra_channels = 2
 TSA_math_xtra_labels = ["RH div RV", "math_2"]
@@ -45,17 +45,18 @@ TSA_math_xtra_labels = ["RH div RV", "math_2"]
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
 ortho_bounds_option = 1
-AOI_vector_file = r"E:\RCMP_RCM\stack01_3MCP34_DESC_aoi.pix"
+AOI_vector_file = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\AOI_stack_QC03M_7262_4500_ASC_UTM18TD000.pix"
 AOI_segment_number = 2
 
 ortho_resolution_X = "2"
 ortho_resolution_Y = "2"
 
 # E) General options
-# Generate overviews - either yes or no,
-generate_overviews = "yes"
-# keep or delete intermediate files - either yes or no. No is recommended.
-delete_intermediary_files = "no"
+generate_overviews = "yes"         #either "yes" or "no"
+delete_intermediary_files = "yes"   #either "yes" or "no"
+
+# Behaviour when output file exists 
+if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"
 
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 2: Notes
@@ -71,6 +72,7 @@ delete_intermediary_files = "no"
 import sys
 import os
 import fnmatch
+import shutil
 import time
 import locale
 import re
@@ -93,9 +95,6 @@ from TSA_utilities.SAR_TSA_other_layers import math_layers_split
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
-
-
-
 
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 4: Parameters validation
@@ -122,7 +121,7 @@ py1 = str(sys.version_info[0])
 py2 = str(sys.version_info[1])
 py3 = (py1 + "." + py2)
 python_version = float(py3)
-if python_version < 3.8:
+if python_version < 2.0:
     print("You are using Python v" + str(python_version))
     print("You need to update to Python 3.8 or newer versions")
     sys.exit()
@@ -346,6 +345,13 @@ if isinstance(ortho_resolution_Y, str) is False:
     sys.exit()
 
 # F) Other options verification
+if if_file_exists.lower() not in ["skip","regenerate"]:     
+    print('Error - valid options for existing_data are "skip" or "regenerate"')
+    sys.exit()
+else: 
+    info_message_skip = ("   output file already exists - skip (if_file_exists = skip)")
+    info_message_regn =  ("   output file already exists - regenerate (if_file_exists = regenerate)")
+
 generate_overviews = generate_overviews.lower()
 if generate_overviews in yes_validation_list: 
     generate_overviews = True
@@ -453,23 +459,23 @@ if produce_coherence_layers is True:
                 filo = os.path.join(Fld_Raw_Interferograms, "raw_0_" + prefix +
                                     "ref" + ref_date + "_dep" + dep_date +"_" + pol_labels + ".pix")
 
-            print("   Out-->" + filo)
-
-            if not os.path.exists(filo):
+            print ("   output file--> " + filo)
+            if os.path.exists (filo) and if_file_exists == "skip": 
+                print (info_message_skip)
+            else: 
+                if os.path.exists (filo) and if_file_exists == "regenerate": 
+                    print (info_message_regn)
+                    os.remove (filo)
                 try:
                     insraw(filref, dbic_ref, fili, dbic, flsz, filo)
-                    Raw_Interferogram_list.append(filo)
-
-                    if generate_overviews is True:
-                        pyramid(file=filo, force='yes', poption='aver',
-                                dboc=[], olevels=[])
+                    if generate_overviews is True and delete_intermediary_files is False:
+                        pyramid(file = filo, dboc = [], force = "yes", olevels = [], poption= "aver")
                 except PCIException as e:
                         print(e)
                 except Exception as e:
                     print(e)
-            else:
-                print ("Output file already exists - skip")
             print("\t")
+            Raw_Interferogram_list.append(filo)
             count = count + 1
         batch = batch + 1
 
@@ -489,9 +495,12 @@ if produce_coherence_layers is True:
     step_nans = "INSRAW_"
     input_folder_nans = Fld_Raw_Interferograms
     nans_file = os.path.join (input_folder_nans, "INSRAW_replace_nans_info.txt")
-    if os.path.exists(nans_file):
+
+    if os.path.exists(nans_file) and if_file_exists == "skip":
         print (" Checks for NANs already done - skip")
     else: 
+        if os.path.exists(nans_file) and if_file_exists == "regenerate":
+            os.remove(nans_file)
         nan_replace(step_nans, input_folder_nans)
     
     proc_stop_time = time.time()
@@ -520,15 +529,15 @@ if produce_coherence_layers is True:
     ps_output_folder = Fld_coherence
     math_chans = "no"
 
-    psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers,
-                    TSA_labels, ps_output_folder, unique_files, prefix, math_chans)
-
+    psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA_labels, ps_output_folder, unique_files, 
+                    prefix, math_chans, if_file_exists, info_message_skip, info_message_regn)
 
     proc_stop_time = time.time()
     folder = Fld_coherence
     out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
     string_1 = ("Coherence layers generation:" + out_folder_time_size) 
     time_log.write("%s\n" % string_1)
+
     # --------------------------------------------------------------------------------------------------------------
     # Orthorectification of the coherences layers
     proc_start_time = time.time()
@@ -538,9 +547,9 @@ if produce_coherence_layers is True:
     input_folder_for_ortho = Fld_coherence
     output_folder_ortho = Fld_coherence_ortho
 
-    ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
-               ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
-               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
+    ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, AOI_file, 
+               AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels, 
+               if_file_exists, info_message_skip, info_message_regn, delete_intermediary_files)
 
     proc_stop_time = time.time()
     folder = Fld_coherence_ortho
@@ -571,8 +580,8 @@ if produce_intensity_layers is True:
     else: 
         math_chans = "no"
 
-    psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers,
-                    TSA_labels, ps_output_folder, unique_files, prefix, math_chans)
+    psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA_labels, ps_output_folder, unique_files, 
+                    prefix, math_chans, if_file_exists, info_message_skip, info_message_regn)
 
     proc_stop_time = time.time()
     folder = Fld_intensity
@@ -601,9 +610,9 @@ if produce_intensity_layers is True:
     input_folder_for_ortho = Fld_intensity
     output_folder_ortho = Fld_intensity_ortho
  
-    ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
-               ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
-               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
+    ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, AOI_file, 
+               AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels, 
+               if_file_exists, info_message_skip, info_message_regn, delete_intermediary_files)
     
     proc_stop_time = time.time()
     folder = Fld_intensity_ortho
@@ -631,10 +640,10 @@ if produce_intensity_layers is True:
         print(time.strftime("%H:%M:%S") + " Orthorectification of the Math layers")
         input_folder_for_ortho = Fld_math_layers
         output_folder_ortho = Fld_math_layers_ortho
-
-        ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel,
-               ortho_bounds_option, AOI_file, AOI_file_segment_number, ortho_resolution_X,
-               ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels)
+        
+        ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, AOI_file, 
+               AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, TSA_math_xtra_channels, 
+               if_file_exists, info_message_skip, info_message_regn, delete_intermediary_files)
       
         # -------------------------------------------------------------------------------------------------------
         # Math layers splitting
@@ -684,30 +693,37 @@ out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, pro
 string_1 = ("Time series list preparation:" + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
-'''
-# ------------------------------------------------------
-# J) Deleting intermediary files if requested
-# ---------------------------------------------------------
 
-if delete_intermediary_files in yes_validation_list:
+# -------------------------------------------------------------------------------------------------------------
+# J) Deleting the intermediary files if requested
+# -------------------------------------------------------------------------------------------------------------
+
+if delete_intermediary_files is True:
+    proc_start_time = time.time()
     print("\t")
-    print("--------------------------------------------------------------")
+    print("-------------------------------------------------------------------------------------------------------")
+    print("                                Deleting the intermediary files                                        ")
+    print("-------------------------------------------------------------------------------------------------------")
     print("\t")
-    print((time.strftime("%H:%M:%S")) + "  Deleting intermediary files")
+    
+    string1 = "Deleting intermediary files requested"
+    time_log.write("%s\n" % string1)
 
     del_folders_list = []
     # List of all (possible) folders to delete
-    del_folders_list.append(os.path.join(output_folder, "1_INSINFO"))
-    del_folders_list.append(os.path.join(output_folder, "2_SARINGESTAOI"))
-    del_folders_list.append(os.path.join(output_folder, "4_RAW"))
-    del_folders_list.append(os.path.join(output_folder, "5_DEFO"))
+    del_folders_list.append(os.path.join(output_folder, "3_1_1_RAW_interferograms"))
+    del_folders_list.append(os.path.join(output_folder, "3_1_2_Coherence"))
+    del_folders_list.append(os.path.join(output_folder, "3_2_1_Intensity"))
+   
 
     for delete in del_folders_list:
         if os.path.isdir(delete):
-            print("deleting " + delete)
+            print(time.strftime("%H:%M:%S") + " Deleting " + delete)
             shutil.rmtree(delete)
 
-'''
+    string_1 = ("Intermediary file deletion requested") 
+    time_log.write("%s\n" % string_1)
+
 print("\t")
 print(" ------------------------------------------------------------------------------------------------------")
 print(" ------------------------------------------------------------------------------------------------------")

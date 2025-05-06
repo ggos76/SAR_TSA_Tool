@@ -653,9 +653,8 @@ time_log.write("%s\n" % string_1)
 # -------------------------------------------------------------------------------------------------------------
 # J) Deleting the intermediary files if requested
 # -------------------------------------------------------------------------------------------------------------
-
 if delete_intermediary_files is True:
-    proc_start_time = time.time()
+    
     print("\t")
     print("-------------------------------------------------------------------------------------------------------")
     print("                                Deleting the intermediary files                                        ")
@@ -667,7 +666,6 @@ if delete_intermediary_files is True:
 
     del_folders_list = []
     # List of all (possible) folders to delete
-    del_folders_list.append(os.path.join(output_folder, "5_1_2_compactpol_ortho"))
     del_folders_list.append(os.path.join(output_folder, "5_1_1_compactpol"))
 
     for delete in del_folders_list:
@@ -675,6 +673,8 @@ if delete_intermediary_files is True:
             print(time.strftime("%H:%M:%S") + " Deleting " + delete)
             shutil.rmtree(delete)
 
+    string_1 = ("Intermediary file deletion requested") 
+    time_log.write("%s\n" % string_1)
 
 print("\t")
 print("-------------------------------------------------------------------------------------------------------")
