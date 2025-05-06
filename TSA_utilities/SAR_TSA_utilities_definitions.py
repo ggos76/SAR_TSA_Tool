@@ -35,9 +35,8 @@ def nan_replace(step_nans, input_folder_nans):
     print ("Checking for NANs")
     print ("\t")
 
-    calibration_report_txt = os.path.join(input_folder_nans, step_nans +
-                                          "replace_nans_info.txt")
-    nspio.enableDefaultReport(calibration_report_txt)
+    nan_report_txt = os.path.join(input_folder_nans, step_nans + "replace_nans_info.txt")
+    nspio.enableDefaultReport(nan_report_txt)
 
     nans_files_list = []
     for root, dirs, files in os.walk(input_folder_nans):
@@ -67,6 +66,7 @@ def nan_replace(step_nans, input_folder_nans):
             print (e)
         count = count + 1
 
+    nspio.enableDefaultReport('term')
     return ()
 
 #----------------------------------------------------------------------------------------------------------------------------
@@ -74,7 +74,11 @@ def nan_replace(step_nans, input_folder_nans):
 #----------------------------------------------------------------------------------------------------------------------------
 def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, 
                AOI_file, AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, 
-               TSA_math_xtra_channels):
+               TSA_math_xtra_channels, if_file_exists, info_message_skip, info_message_regn, delete_intermediary_files):
+
+
+    ortho_details_dump = os.path.join (output_folder_ortho, "ortho_info_dump.txt")
+    nspio.enableDefaultReport(ortho_details_dump)
 
     # A) Find the files to orthorectify
     files_to_ortho_list = []
@@ -82,7 +86,6 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
     for root, dirs, files in os.walk(input_folder_for_ortho):
         for filename in fnmatch.filter(files, file_keyword):
             files_to_ortho_list.append(os.path.join(root, filename))
-
 
     # B) Find the bounds for the orthorectified files
     if ortho_bounds_option == 1:   # extends from the AOI file
@@ -198,38 +201,34 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
         sampling = [1]
         resample = "near"
 
-        print("   Output file: " + filo)
-        if os.path.exists(filo):
-            print ("File already exist - skip")
-        else:
-            # pyramids options
-            file = filo
-            force = 'yes'
-            poption = 'aver'
-            dboc = []
-            olevels = []
-
+        print("   output file--> " + filo)
+        if os.path.exists (filo) and if_file_exists == "skip": 
+             print (info_message_skip)
+        else: 
+            if os.path.exists (filo) and if_file_exists == "regenerate": 
+                print (info_message_regn)
+                os.remove (filo)
             try:
                 ortho(mfile, dbic, mmseg, dbiw, srcbgd, filo, ftype, foptions, outbgd,
                       ulx, uly, lrx, lry, edgeclip, tipostrn, mapunits, bxpxsz, bypxsz, filedem,
                       dbec, backelev, elevref, elevunit, elfactor, proc, sampling, resample)
-                if generate_overviews is True:
-                    pyramid(file, dboc, force, olevels, poption)
-
+                if generate_overviews is True and delete_intermediary_files is False:
+                    pyramid(file = filo, dboc = [], force = "yes", olevels = [], poption= "aver")
             except PCIException as e:
                 print(e)
             except Exception as e:
                 print(e)
-            print("   Output orthorectified file: " + filo)
+            print ("\t")
         count = count + 1
 
+    nspio.enableDefaultReport('term')
     return ()
 
 #----------------------------------------------------------------------------------------------------------------------------
 # Conversion from complex to intensity data
 #----------------------------------------------------------------------------------------------------------------------------
-def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA_labels,
-                    ps_output_folder, unique_files, prefix, math_chans):
+def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA_labels, ps_output_folder, unique_files, 
+                    prefix, math_chans, if_file_exists, info_message_skip, info_message_regn):
     
     #-------------------------------------------------------------------------------------------------------------------------
     # A) Find the unique scenes (mainly for the coregistered files when SBAS mode is use)
@@ -263,6 +262,7 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
         print (ii)
     
     nb_chans = str(len(TSA_layers))
+
     #-------------------------------------------------------------------------------------------------------------------------
     # B) Converting the complex channels to intensity
     print ("\t")
@@ -289,9 +289,12 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
                 ftype = "PIX"
                 foptions = ""
 
-                if os.path.exists(filo):
-                    print ("File already exist - skip")
-                else:
+                if os.path.exists (filo) and if_file_exists == "skip": 
+                    print (info_message_skip)
+                else: 
+                    if os.path.exists (filo) and if_file_exists == "regenerate": 
+                        print (info_message_regn)
+                        os.remove (filo)
                     try:
                         psiqinterp(fili, dbic, cinterp, dboc, filo, ftype, foptions)
                     except PCIException as e:
@@ -313,57 +316,22 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
                 cinterp = interp_type
                 dboc = []
                 filo = os.path.join(out_math2, base + "_" + suffix + ".pix")
-                print ("   Output file-->" + filo)
+                print ("   output file-->" + filo)
                 ftype = "PIX"
                 foptions = ""
              
-                if os.path.exists(filo):
-                    print ("File already exist - skip")
-                else:
+                if os.path.exists (filo) and if_file_exists == "skip": 
+                    print (info_message_skip)
+                else: 
+                    if os.path.exists (filo) and if_file_exists == "regenerate": 
+                        print (info_message_regn)
+                        os.remove (filo)
                     try:
                         psiqinterp(fili, dbic, cinterp, dboc, filo, ftype, foptions)
                     except PCIException as e:
                         print(e)
                     except Exception as e:
-                        print(e)   
-                
-                '''
-                # We split the channels 
-                chan = 1       
-                for in_chan in TSA_layers:
-                    nb_chan = str(len(TSA_layers))
-                    in_label = TSA_labels[in_chan - 1]
-
-                    out_split_int = os.path.dirname (ps_output_folder)
-                    out_split_int_folder = os.path.join(out_split_int, "3_2_1_Intensity")
-                    
-                    print ("   Exporting intensity channel " + str (chan) + " of " + nb_chans)
-                    fili = ii
-                    filo = os.path.join(out_split_int_folder, base + "_" + in_label +"_"+ suffix + ".pix")
-                    print ("   Output file-->" + filo)
-                    cinterp = interp_type
-                    dboc = []
-
-                    dbiw =	[]
-                    dbic =	[in_chan]
-                    dbib =	[]
-                    dbvs =	[2]
-                    dblut =	[]
-                    dbpct =	[]
-                    ftype =	"PIX"
-                    foptions = ""
-
-                    if os.path.exists(filo):
-                        print ("File already exist - skip")
-                    else:
-                        try:
-                            fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
-                        except PCIException as e:
-                            print(e)
-                        except Exception as e:
-                            print(e)
-                        chan = chan + 1
-            '''                    
+                        print(e)                    
             count = count + 1
 
     
@@ -384,10 +352,14 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
             ftype = "PIX"
             foptions = ""
 
-            print("   output:" + filo)
-            if os.path.exists (filo):
-                print ("File already exist - skip")
-            else:
+            print ("   output file-->" + filo)
+            if os.path.exists (filo) and if_file_exists == "skip": 
+                print (info_message_skip)
+            else: 
+                if os.path.exists (filo) and if_file_exists == "regenerate": 
+                    print (info_message_regn)
+                    os.remove (filo)
+
                 try:
                     psiqinterp(fili, dbic, cinterp, dboc, filo, ftype, foptions)
                 except PCIException as e:
@@ -699,7 +671,7 @@ def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_va
             print(e)
 
         count = count + 1
-    os.remove(file_model)
+    #os.remove(file_model)
     return ()
 # ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
