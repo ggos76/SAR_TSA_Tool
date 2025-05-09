@@ -9,7 +9,7 @@
 #  Part 1: User defined variables
 # -----------------------------------------------------------------------------------------------------------------
 #A) Input parameters
-parent_folder_search = r"D:\RCMP_data_RCM\raw_vendor\unzip"
+parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\stk_21_CP09_A"
 keyword = "manifest.safe"
 
 # B) Ortho options -  Use a coarse resolution to produce resonably sized thumbnails
@@ -20,12 +20,12 @@ Elevation_channel = 1
 
 #C) Output options
 filename_output_format = 5           # Valid options are 1,2,3,4,5
-Prefix = "QC_"                    # Optional. Leave blank "" for no prefix.
+Prefix = "QC03m_"                    # Optional. Leave blank "" for no prefix.
 Add_long_lat_suffix = "yes"          # Valid options are "yes" or "no" 
 date_format = "unique"               # Valid options are "compact" or "unique"   
 
 output_options = 2   
-output_folder = r"D:\RCMP_data_RCM\projects_overview\QC\ortho_footprints_3m"
+output_folder = r"D:\RCMP_prj_overviews\prj_QC\RCM03m\AAAAAAAAAAAAA"
 
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 2: Notes
@@ -76,7 +76,7 @@ filename_output_format == 4  # date_time_unique
     filename = Prefix + <Acquisition_Type2> + <date_time_unique> + ".pix"
     
 filename_output_format == 5
-    filename = Prefix + <beam)mode> + < date_time_unique> + <Orbit_Direction2> + ".pix"
+    filename = Prefix + <beam mode> + <Orbit_Direction2> + < date_time_unique> +  ".pix"
 
 filename_output_format == 6
 
@@ -325,7 +325,7 @@ elif filename_output_format == 4:
 
 elif filename_output_format == 5:
     for acq_type, date, orbit in zip (BeamMode2, date_time_unique, Orbit_Direction2):
-        temp = Prefix + acq_type + "_" + date + "_" + orbit + ".pix"
+        temp = Prefix + acq_type + "_" + orbit + "_" + date + ".pix"
         output_file_name.append(temp)
 
 print("\t")
