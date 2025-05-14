@@ -1,15 +1,16 @@
 #!/usr/bin/env python
-'''----------------------------------------------------------------------
- * Gabriel Gosselin, CCRS. May 2024                                      -
- * ----------------------------------------------------------------------
+'''----------------------------------------------------------------------------------------------
+ * Gabriel Gosselin, CCRS.  2024-2025                                                           -
+ * ----------------------------------------------------------------------------------------------
 '''
 
-# -----------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------
 #  User defined variables
 # ----------------------------------------------------------------------------------------------
 # The Input scenes can be retrieved from an input folder or an mfile (*.txt)
-parent_folder_search = r"D:\RCMP_RCM\raw_vendor\unzip\stk01_3MCP34_DESC"
+parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7158_4495_CP05_A"
 keyword = "manifest.safe"
+unzip_files_first = "yes"
 
 # Applies only to Sentinel-1 data. Ingest a single swath or all swaths.
 # Options are 1, 2, 3, 4 (all swaths)
@@ -17,8 +18,8 @@ sentinel_swath = 4
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
-prefix = "stk01_"
-output_folder = r"E:\RCMP_RCM\stack01_3MCP34_DESC"
+prefix = "t07_"
+output_folder = r"E:\test_07"
 
 # Elevation source
 DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
@@ -63,14 +64,16 @@ AOI_segment_number = 2
 # Can be box or NoData, box is recommended for optimal pairs coregistration.
 subset_filling_option = "box"
 
-# Generate overviews - either yes or no,
+# Generate overviews - either yes or no
 generate_overviews = "yes"
 # keep or delete intermediate files - either yes or no. No is recommended.
 delete_intermediary_files = "no"
+# Behaviour when output file exists 
+if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 #  Scripts -  Notes.
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 '''
 1) There is no verification if the specified DEM covers completely the spatial
    extents of the AOI. If not the script will run to completion but all
@@ -86,6 +89,8 @@ import time
 import locale
 import fnmatch
 from datetime import datetime
+import zipfile
+import shutil
 
 import pci
 from pci.saringestaoi import saringestaoi
@@ -95,15 +100,17 @@ from pci.iii import iii
 from pci.exceptions import PCIException
 from pci.api import datasource as ds
 from pci.api.inputsource import InputSourceFactoryBuilder
+from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
-
-
 # ---------------------------------------------------------------------------------------------------------------------
 #  VALIDATION
 # ---------------------------------------------------------------------------------------------------------------------
-# A.1) Hardcoded parameters
+TSA_01_start = time.time()
+val_start = time.time()
+
+# Hardcoded parameters
 Calibration_type = "sigma"
 Output_filename_format = 2
 yes_validation_list = ["yes", "y", "yse", "ys"]
@@ -123,20 +130,27 @@ if python_version < 3.6:
     sys.exit()
 print("\t")
 
+# A.1) 
 if not os.path.exists(parent_folder_search):
     print("The specified parent_folder_search does not exists")
     print("Verify please the input scenes folder path: ")
     print(parent_folder_search)
     sys.exit()
 
+unzip_files_first = unzip_files_first.lower()
+if unzip_files_first in yes_validation_list: 
+    unzip_files = True
+elif unzip_files_first in no_validation_list: 
+    unzip_files = False
+else: 
+    print ('Error - the unzip_files_first parameter must be set with "yes" or "no"')
+    sys.exit()
+    
 # A.2) Creation of the INSINFO output folder and baseline report
 fld_scenes_import = os.path.join(output_folder, "1_Scenes_Import")
 if not os.path.exists(fld_scenes_import):
     os.makedirs(fld_scenes_import)
 Output_InSARpairs_report_name = prefix + "02_Pair_selection_and_baselines_list.txt"
-
-script1_procTime = os.path.join(output_folder, prefix + "script1_INSINFO_SARINGESTAOI_ProcessingTime.txt")
-time_log = open(script1_procTime, "w")
 
 # A.3) INSINFO EARLY VALIDATION
 if absolute_perp_baseline_min < 0:
@@ -167,7 +181,7 @@ if start_date_YYYYMMDD > stop_date_YYYYMMDD:
     print("Program stopped")
     sys.exit()
 
-# A.4)Sentinel-1 subswath selector
+# A.4) Sentinel-1 subswath selector
 if sentinel_swath not in [1, 2, 3, 4]:
     print("\t")
     print("Error - sentinel_swath  option is not valid")
@@ -213,20 +227,87 @@ if subset_input_data.lower() in yes_validation_list:
         print("Provide a valid path and filename")
         sys.exit()
 
+#---------------------------------------------------------------------------------------
+if if_file_exists.lower() not in ["skip","regenerate"]:     
+    print('Error - valid options for existing_data are "skip" or "regenerate"')
+    sys.exit()
+else: 
+    info_message_skip = ("   output file already exists - skip (if_file_exists = skip)")
+    info_message_regn =  ("   output file already exists - regenerate (if_file_exists = regenerate)")
+
+# All validations have suceeded, a time log file is open.
+val_stop = time.time()
+script1_procTime = os.path.join(output_folder, prefix + "TSA_script1_DataIngest_processingTime.txt")
+time_log = open(script1_procTime, "w")
+
+current_time =  time.localtime()
+string_0 = time.strftime("%Y-%m-%d", current_time)
+time_log.write("%s\n" % string_0)
+
+string_0 = ("Process;proc.time (secs);Data size (MB);Number of files")
+time_log.write("%s\n" % string_0)
+
+val_stop = time.time()
+string_1 = "Validation: ;" + str (round((val_stop - val_start), 2)) 
+time_log.write("%s\n" % string_1)
 
 #----------------------------------------------------------------------------------------------
 #  B) Find input scenes from an MFILE or from an input folder with a specified keyword
 #----------------------------------------------------------------------------------------------
-start = time.time()
-
-# Determine the input raw scenes - either from a folder or mfile textfile.
-# in both cases a keyword can be used to restrict the input files
 
 print ("\t")
 print ("-------------------------------------------------------------------------------------------------------------")
-print ("                      Search for input scenes and Metadata retrieval                                         ")
+print ("                      Search for input scenes and metadata retrieval                                         ")
 print ("-------------------------------------------------------------------------------------------------------------")
 
+if unzip_files is True:
+    proc_start_time = time.time()
+   
+    fld_unzip = os.path.join(output_folder, "0_Scenes_Unzip")
+    if not os.path.exists(fld_unzip):
+        os.makedirs(fld_unzip)
+  
+    print ("Input scenes unzipping")
+    files_to_unzip = []
+    for root, dirs, files in os.walk(parent_folder_search):
+        for filename in fnmatch.filter(files, "*.zip"):
+            files_to_unzip.append(os.path.join(root, filename))
+    
+    count = 1
+    nb_files = str(len(files_to_unzip))
+    unzip_folder = []
+    for ii in files_to_unzip:
+        print("   " + (time.strftime("%H:%M:%S")) + " unzipping file " + str (count) + " of " + nb_files)
+        
+        base1 = os.path.basename (ii[:-4])
+        out_folder = os.path.join (fld_unzip, base1)
+
+        if os.path.exists (out_folder) and if_file_exists == "skip":
+            print (info_message_skip)
+        else:  
+            if os.path.exists (out_folder) and if_file_exists == "regenerate":
+                print (info_message_regn)
+                shutil.rmtree(out_folder)
+            
+            os.makedirs (out_folder)
+            unzip_folder.append (out_folder) 
+        
+            with zipfile.ZipFile(ii, 'r') as zip_ref:
+                zip_ref.extractall(out_folder)
+
+        count = count + 1
+    
+    proc_stop_time = time.time()
+    folder = fld_unzip
+    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    string_1 = ("Files unzipping: " + out_folder_time_size) 
+    time_log.write("%s\n" % string_1)
+    
+    parent_folder_search = fld_unzip
+
+proc_start_time = time.time()
+print ("\t")
+print ("-------------------------------------------------------------------------------------------")
 print((time.strftime("%H:%M:%S")) + " Search for input scenes")
 print("   search folder: " + parent_folder_search)
 print("   keyword: " + keyword)
@@ -240,7 +321,6 @@ if len(VendorInput) < 2:
     print("Program stopped")
     print("\t")
     sys.exit()
-
 
 # write out an mfile of the discovered files for user info
 file = os.path.join(fld_scenes_import, prefix + "01_Discovered_Scenes_list.txt")
@@ -281,7 +361,7 @@ if use_start_stop_date in yes_validation_list:
         date = int(date)
 
         if date < start_date_YYYYMMDD or date > stop_date_YYYYMMDD:
-            print (str(date) + "--->" + input_file)
+            print (str(date) + "-->" + input_file)
             print("   Acquisition date outside the range of start and stop date")
         else:
             Acquisition_DateTime3_b.append(date)
@@ -363,6 +443,7 @@ if pairs_selection_mode == 1:
                     print(e)
                 except Exception as e:
                     print(e)
+
 #--------------------------------------------------------------------------------------------------
 # 2- Single reference file
 pair = 0
@@ -396,8 +477,7 @@ if pairs_selection_mode == 2:
                                  + dep + ".txt")
 
             print("\t")
-            print(((time.strftime("%H:%M:%S")) +
-                  " Generating the INSINFO report"))
+            print(((time.strftime("%H:%M:%S")) + " Generating the INSINFO report"))
             print("Reference file: " + filref)
             print("Dependent file: " + mfile)
 
@@ -607,7 +687,6 @@ print("                                   Selected scenes ingestion             
 print("--------------------------------------------------------------------------------------------------------------")
 print("\t")
 
-metadata_start = time.time()
 # B) Read and parse the baseline report
 Input_file_lines = []
 pair_number = []
@@ -640,7 +719,6 @@ Reference_Dependent_file_list = Reference_file + Dependent_file
 
 #-----------------------------------------------------------------------------------------
 #C) Metadata acquisition
-
 print(time.strftime("%H:%M:%S") + " Metadata acquistion")
 print("\t")
 
@@ -697,16 +775,16 @@ for ii in Acquisition_DateTime2:
     b = a.replace(":", "")
     Acquisition_DateTime3.append(b[:8])
 
-metadata_stop = time.time()
-string1 = "1-Metadata retrieval proc time;"
-ellapse_time = str(round(metadata_stop - metadata_start, 2))
-string2 = string1 + ellapse_time
-time_log.write("%s\n" % string2)
+
+proc_stop_time = time.time()
+folder = fld_scenes_import
+out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+string_1 = ("Metadata retrieval and pairs selection: " + out_folder_time_size) 
+time_log.write("%s\n" % string_1)
 
 #-----------------------------------------------------------------------------------------
 #D) Build output filename based on user choice
 #-----------------------------------------------------------------------------------------
-
 output_file_name = []
 
 if Output_filename_format == 1:    # Source ID
@@ -734,16 +812,13 @@ elif Output_filename_format == 4:
 #E) SARINGESTAOI
 #   Ingest the files stored in the MFILE , use the acquisition date to name the files.
 #-----------------------------------------------------------------------------------------
-SaringestAOI_start = time.time()
+proc_start_time = time.time()
 # Split the list here
 #A = [1,2,3,4,5,6]
 #B = A[:len(A)//2]
 #C = A[len(A)//2:]
-
-ReferenceFiles_output_FilenamesList=output_file_name[:len(
-    output_file_name) // 2]   # First half of the list
-DependentFiles_output_FilenamesList=output_file_name[len(
-    output_file_name) // 2:]   # Second half of the list
+ReferenceFiles_output_FilenamesList=output_file_name[:len(output_file_name) // 2]   # First half of the list
+DependentFiles_output_FilenamesList=output_file_name[len(output_file_name) // 2:]   # Second half of the list
 
 print("\t")
 print("---------------------------------------------------------------------------------------------------------------")
@@ -881,33 +956,43 @@ with open(file, "w") as f:
         ref_out = os.path.join(fld_scenes_import, ref_ingested)
         dep_out = os.path.join(fld_scenes_import, dep_ingested)
 
-        string1 = (pair + ";" + ref_out + ";" + ref_date + ";" + dep_out +
-                   ";" + dep_date)
-
+        string1 = (pair + ";" + ref_out + ";" + ref_date + ";" + dep_out + ";" + dep_date)
         f.write("%s\n" % string1)
 
-SaringestAOI_stop = time.time()
-string1 = "2- Data Ingestion proc time;"
-ellapse_time = str(round(SaringestAOI_stop - SaringestAOI_start, 2))
-string2 = string1 + ellapse_time
-time_log.write("%s\n" % string2)
+
+proc_stop_time = time.time()
+folder = fld_scenes_import
+out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+string_1 = ("Scenes ingestion: " + out_folder_time_size) 
+time_log.write("%s\n" % string_1)
+
+# ---------------------------------------------------------------------------------------------
+# We can now delete the folders containing the unzipped data.
+
+if unzip_files is True: 
+    shutil.rmtree(fld_unzip)
 
 
+# ---------------------------------------------------------------------------------------------
 print("\t")
-print("--------------------------------------------------------------------------------------------------------------")
+print("------------------------------------------------------------------------------------------------")
 print((time.strftime("%H:%M:%S")))
 print("All processing completed")
 print("\t")
-end = time.time()
 
-ellapse_time_seconds = round((end - start), 2)
+TSA_01_stop = time.time()
+ellapse_time_seconds = round((TSA_01_stop - TSA_01_start), 2)
 ellapse_time_minutes = round((ellapse_time_seconds / 60), 2)
 ellapse_time_hours = round((ellapse_time_seconds / 3600), 2)
 
 print("Processing time (seconds): " + str(ellapse_time_seconds))
 print("Processing time (minutes): " + str(ellapse_time_minutes))
 print("Processing time (hours): " + str(ellapse_time_hours))
-string1 = "4-Total proc time (seconds);" + str(ellapse_time_seconds)
+
+string1 = "TSA_01 total processing time (secs):;" + str(ellapse_time_seconds)
+time_log.write("%s\n" % string1)
+string1 = "TSA_01 total processing time (mins):;" + str(ellapse_time_minutes)
+time_log.write("%s\n" % string1)
+string1 = "TSA_01 total processing time hours):;" + str(ellapse_time_hours)
 time_log.write("%s\n" % string1)
 time_log.close()
-
