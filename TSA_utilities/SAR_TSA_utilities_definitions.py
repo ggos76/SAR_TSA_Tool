@@ -10,7 +10,12 @@ import locale
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
 
-import os, fnmatch, time, sys
+import os
+import fnmatch
+import time
+import sys
+import shutil
+import zipfile
 from datetime import datetime
 
 import numpy as np
@@ -26,6 +31,7 @@ from pci.poly2bit import poly2bit
 from pci.fexport import fexport
 from pci.model import model
 from pci import nspio
+
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def nan_replace(step_nans, input_folder_nans):
@@ -830,5 +836,45 @@ def get_folder_proctime_and_size (folder_path, proc_stop_time, proc_start_time):
    
     total_files = str(len(input_files_list))
 
-    out_folder_time_size= (";" + time_sec + ";" + size_mb + ";" + total_files)
+    out_folder_time_size= (";" + time_sec + ";" +size_mb + ";" + total_files)
     return out_folder_time_size
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+def unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_regn, info_message_skip):
+      
+    if not os.path.exists(fld_unzip):
+        os.makedirs(fld_unzip)
+  
+    files_to_unzip = []
+    for root, dirs, files in os.walk(parent_folder_search):
+        for filename in fnmatch.filter(files, "*.zip"):
+            files_to_unzip.append(os.path.join(root, filename))
+    
+    count = 1
+    nb_files = str(len(files_to_unzip))
+    unzip_folder = []
+    for ii in files_to_unzip:
+        print("   " + (time.strftime("%H:%M:%S")) + " unzipping file " + str (count) + " of " + nb_files)
+        
+        base1 = os.path.basename (ii[:-4])
+        out_folder = os.path.join (fld_unzip, base1)
+
+        if os.path.exists (out_folder) and if_file_exists == "skip":
+            print (info_message_skip)
+        else:  
+            if os.path.exists (out_folder) and if_file_exists == "regenerate":
+                print (info_message_regn)
+                shutil.rmtree(out_folder)
+            
+            os.makedirs (out_folder)
+            unzip_folder.append (out_folder) 
+        
+            with zipfile.ZipFile(ii, 'r') as zip_ref:
+                zip_ref.extractall(out_folder)
+
+        count = count + 1
+    
+    return ()
+    
+    

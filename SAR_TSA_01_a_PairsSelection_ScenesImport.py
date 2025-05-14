@@ -10,7 +10,7 @@
 # The Input scenes can be retrieved from an input folder or an mfile (*.txt)
 parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7158_4495_CP05_A"
 keyword = "manifest.safe"
-unzip_files_first = "yes"
+unzip_files_first = "yes"           # Valid options are "yes" or "no"
 
 # Applies only to Sentinel-1 data. Ingest a single swath or all swaths.
 # Options are 1, 2, 3, 4 (all swaths)
@@ -18,8 +18,8 @@ sentinel_swath = 4
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
-prefix = "t07_"
-output_folder = r"E:\test_07"
+prefix = "t10_"
+output_folder = r"E:\test_10"
 
 # Elevation source
 DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
@@ -101,6 +101,7 @@ from pci.exceptions import PCIException
 from pci.api import datasource as ds
 from pci.api.inputsource import InputSourceFactoryBuilder
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
+from TSA_utilities.SAR_TSA_utilities_definitions import unzip_batch
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
@@ -262,41 +263,11 @@ print ("------------------------------------------------------------------------
 
 if unzip_files is True:
     proc_start_time = time.time()
+    fld_unzip = os.path.join(output_folder, "0_unzipped_scenes")
+    
+    unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_regn, info_message_skip)
+    
    
-    fld_unzip = os.path.join(output_folder, "0_Scenes_Unzip")
-    if not os.path.exists(fld_unzip):
-        os.makedirs(fld_unzip)
-  
-    print ("Input scenes unzipping")
-    files_to_unzip = []
-    for root, dirs, files in os.walk(parent_folder_search):
-        for filename in fnmatch.filter(files, "*.zip"):
-            files_to_unzip.append(os.path.join(root, filename))
-    
-    count = 1
-    nb_files = str(len(files_to_unzip))
-    unzip_folder = []
-    for ii in files_to_unzip:
-        print("   " + (time.strftime("%H:%M:%S")) + " unzipping file " + str (count) + " of " + nb_files)
-        
-        base1 = os.path.basename (ii[:-4])
-        out_folder = os.path.join (fld_unzip, base1)
-
-        if os.path.exists (out_folder) and if_file_exists == "skip":
-            print (info_message_skip)
-        else:  
-            if os.path.exists (out_folder) and if_file_exists == "regenerate":
-                print (info_message_regn)
-                shutil.rmtree(out_folder)
-            
-            os.makedirs (out_folder)
-            unzip_folder.append (out_folder) 
-        
-            with zipfile.ZipFile(ii, 'r') as zip_ref:
-                zip_ref.extractall(out_folder)
-
-        count = count + 1
-    
     proc_stop_time = time.time()
     folder = fld_unzip
     out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
@@ -304,6 +275,7 @@ if unzip_files is True:
     time_log.write("%s\n" % string_1)
     
     parent_folder_search = fld_unzip
+
 
 proc_start_time = time.time()
 print ("\t")

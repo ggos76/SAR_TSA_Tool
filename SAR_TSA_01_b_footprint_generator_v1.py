@@ -9,8 +9,9 @@
 #  Part 1: User defined variables
 # -----------------------------------------------------------------------------------------------------------------
 #A) Input parameters
-parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\stk_21_CP09_A"
+parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7158_4495_CP05_A"
 keyword = "manifest.safe"
+unzip_files_first = "yes"                     # Valid options are "yes" or "no"
 
 # B) Ortho options -  Use a coarse resolution to produce resonably sized thumbnails
 Ortho_resolution_X = "25"
@@ -20,13 +21,15 @@ Elevation_channel = 1
 
 #C) Output options
 filename_output_format = 5           # Valid options are 1,2,3,4,5
-Prefix = "QC03m_"                    # Optional. Leave blank "" for no prefix.
+prefix = "QC03m_"                    # Optional. Leave blank "" for no prefix.
 Add_long_lat_suffix = "yes"          # Valid options are "yes" or "no" 
 date_format = "unique"               # Valid options are "compact" or "unique"   
 
 output_options = 2   
-output_folder = r"D:\RCMP_prj_overviews\prj_QC\RCM03m\AAAAAAAAAAAAA"
+output_folder = r"E:\test_for_footprint"
 
+# Behaviour when output file exists 
+if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 2: Notes
 # -----------------------------------------------------------------------------------------------------------------
@@ -67,16 +70,16 @@ filename_output_format == 1  # Basename
    RCM--> manifest.safe
 
 filename_output_format == 2  # Source ID
-    filename = Prefix + <SourceID>  + ".pix"
+    filename = prefix + <SourceID>  + ".pix"
 
 filename_output_format == 3  # date_time_compact
-    filename = Prefix + <date_time_compact> + ".pix"
+    filename = prefix + <date_time_compact> + ".pix"
 
 filename_output_format == 4  # date_time_unique
-    filename = Prefix + <Acquisition_Type2> + <date_time_unique> + ".pix"
+    filename = prefix + <Acquisition_Type2> + <date_time_unique> + ".pix"
     
 filename_output_format == 5
-    filename = Prefix + <beam mode> + <Orbit_Direction2> + < date_time_unique> +  ".pix"
+    filename = prefix + <beam mode> + <Orbit_Direction2> + < date_time_unique> +  ".pix"
 
 filename_output_format == 6
 
@@ -105,7 +108,12 @@ import locale
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
 
-import os, glob, fnmatch, sys, time, math
+import os
+import fnmatch
+import sys
+import time
+import math
+import shutil
 
 from pci.ortho import ortho
 from pci.pyramid import pyramid
@@ -118,24 +126,37 @@ from pci.fav import fav
 from pci.reproj import reproj
 from pci.bit2poly import bit2poly
 from pci.poly2pnt import poly2pnt
-from pci.exceptions import *
+from pci.exceptions import PCIException
 from pci.api import datasource as ds
 from pci.api.cts import crs_to_mapunits
+from pci import nspio
 
+from TSA_utilities.SAR_TSA_utilities_definitions import unzip_batch
 
 # -----------------------------------------------------------------------------------------------------------------
-#  Part 4: Parameters validation
+#  Part 4: Input parameters validation
 # -----------------------------------------------------------------------------------------------------------------
-# Hardcoded parameters / Discarded parameters
+print ("---------------------------------------------------------------------------------------------------------")
+print (time.strftime("%H:%M:%S") + " Input parameters validation")
 start = time.time()
+
+# Hardcoded parameters / Discarded parameters
 yes_validation_list = ["yes", "y", "yse", "ys"]
 no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list+no_validation_list
-ortho_exists_behavior = 1
 
 #A) Input parameters
 if not os.path.exists(parent_folder_search): 
     print ("Error - The input folder does not exists or the path is wrong")
+    sys.exit()
+
+unzip_files_first = unzip_files_first.lower()
+if unzip_files_first in yes_validation_list: 
+    unzip_files = True
+elif unzip_files_first in no_validation_list: 
+    unzip_files = False
+else: 
+    print ('Error - the unzip_files_first parameter must be set with "yes" or "no"')
     sys.exit()
 
 # B) Ortho options 
@@ -184,19 +205,37 @@ if output_options in [1,2]:
 else: 
     output_thumbails = False
 
+if if_file_exists.lower() not in ["skip","regenerate"]:     
+    print('Error - valid options for existing_data are "skip" or "regenerate"')
+    sys.exit()
+else: 
+    info_message_skip = ("   output file already exists - skip (if_file_exists = skip)")
+    info_message_regn = ("   output file already exists - regenerate (if_file_exists = regenerate)")
+
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 5: Main program
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------
 
-#A ) Find the files to process
-files_to_ortho_list=[]
+# A.1 ) Run the unzip fucntion if requested. Only *.zip files are supported. 
+if unzip_files is True: 
+    print ("-------------------------------------------------------------------------------------------------------")
+    print ("Input scenes unzipping")
+
+    fld_unzip = os.path.join(output_folder, "0_unzipped_scenes")
+    
+    unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_regn, info_message_skip)
+    parent_folder_search = fld_unzip
+  
+
+# A.2 ) Find the files to process
+files_to_ortho_list = []
 for root, dirs, files in os.walk(parent_folder_search):
     for filename in fnmatch.filter(files, keyword):
         files_to_ortho_list.append(os.path.join(root,filename))                
                   
-if len(files_to_ortho_list)==0:
+if len(files_to_ortho_list) == 0:
     print ("\t")
     print ("Error - no files found")
     print ("Specify another keyword or search folder")
@@ -212,7 +251,8 @@ for input_files in files_to_ortho_list:
 # B ) Creatinng a list of output files name according to the selected format
 # B.1) Extracting the metadata
 print ("\t")
-print (time.strftime("%H:%M:%S") + " Metadata extraction")
+print ("-------------------------------------------------------------------------------------------------------")
+print ("Input scenes metadata extraction")
 print ("\t")
 
 Acquisition_DateTime2 = []
@@ -310,22 +350,22 @@ if filename_output_format == 1:
 
 elif filename_output_format == 2:    # Source ID
     for ii in SourceID2:
-        temp = Prefix + ii + ".pix"
+        temp = prefix + ii + ".pix"
         output_file_name.append(temp)
 
 elif filename_output_format == 3:   # Compact date
     for date in  date_time_unique:
-        temp = Prefix + date + ".pix"
+        temp = prefix + date + ".pix"
         output_file_name.append(temp)
 
 elif filename_output_format == 4:
     for acq_type, date in zip (Acquisition_Type2, date_time_unique):
-        temp=Prefix + acq_type + "_" + date + ".pix"
+        temp=prefix + acq_type + "_" + date + ".pix"
         output_file_name.append(temp)
 
 elif filename_output_format == 5:
     for acq_type, date, orbit in zip (BeamMode2, date_time_unique, Orbit_Direction2):
-        temp = Prefix + acq_type + "_" + orbit + "_" + date + ".pix"
+        temp = prefix + acq_type + "_" + orbit + "_" + date + ".pix"
         output_file_name.append(temp)
 
 print("\t")
@@ -343,14 +383,21 @@ for ii, jj in zip (files_to_ortho_list, output_file_name):
 # -----------------------------------------------------------------------------------------------------------------
 # C) Orthorectification
 # -----------------------------------------------------------------------------------------------------------------
+print ("\t")
+print ("-------------------------------------------------------------------------------------------------------")
+print ("Input scenes Orthorectification")
+print ("\t")
+
+ortho_details_dump = os.path.join (output_folder, "ortho_info_dump.txt")
+nspio.enableDefaultReport(ortho_details_dump)
 
 Orthorectified_scene_list = []
-number_of_files = str(len(files_to_ortho_list))
+nb_files = str(len(files_to_ortho_list))
 print ("\t")
 count = 1
 for input_file, outname in zip(files_to_ortho_list, output_file_name):
 
-    print (((time.strftime("%H:%M:%S")) + " Orthorectifying file " + str(count)+ " of " + number_of_files))
+    print ("   " + time.strftime("%H:%M:%S") + " orthorectifying file " + str(count) + " of " + nb_files)
     print ("   Input file: " + input_file)
 
     base = os.path.basename(input_file)
@@ -384,51 +431,27 @@ for input_file, outname in zip(files_to_ortho_list, output_file_name):
     bxpxsz = Ortho_resolution_X
     bypxsz = Ortho_resolution_Y
 
-    # pyramids options
-    file = filo
-    force = 'yes'
-    poption = 'aver' 
-    dboc = []
-    olevels = []
-   
-    if os.path.exists(filo) and ortho_exists_behavior == 1 :  # We skip the ortho generation
-        print ("   Output ortho-->" + filo )
-        print ("   Warning - the output ortho already exists - skip")
-        produce_ortho = False
-    elif os.path.exists (filo) and ortho_exists_behavior == 2: # Deleting the ortho to regenerate it.
-        print ("   Output ortho-->" + filo )
-        print ("   Warning - the output ortho already exists - delete and regenerate")
-        os.remove(filo)
-        produce_ortho = True
-    elif os.path.exists (filo) and ortho_exists_behavior == 3: 
-         # If a file with the same name exists we add an unique ID at the end. This can happen under certain namming format.
-        # This ensure the script will run till the end. Ortho_exists_rename Must be False:
-        filo = os.path.join(output_folder,"o" + outname[:-4] +"_" + str(count)+ ".pix")
-        produce_ortho = True
+    print("   output file--> " + filo)
+    if os.path.exists (filo) and if_file_exists == "skip": 
+            print (info_message_skip)
     else: 
-        produce_ortho = True
-
-    if produce_ortho is True: 
-
-        file = filo
-        dboc = []
-        force = ""	
-        olevels=[]
-        poption = "AVER"
-
+        if os.path.exists (filo) and if_file_exists == "regenerate": 
+            print (info_message_regn)
+            os.remove (filo)
         try:
-            ortho( mfile, dbic, mmseg, dbiw, srcbgd, filo, ftype, foptions, outbgd,
-            ulx, uly, lrx, lry, edgeclip, tipostrn, mapunits, bxpxsz, bypxsz, filedem, 
-            dbec, backelev, elevref, elevunit, elfactor, proc, sampling,resample )
-            pyramid (file, dboc, force, olevels, poption)
-
+            ortho(mfile, dbic, mmseg, dbiw, srcbgd, filo, ftype, foptions, outbgd,
+                    ulx, uly, lrx, lry, edgeclip, tipostrn, mapunits, bxpxsz, bypxsz, filedem,
+                    dbec, backelev, elevref, elevunit, elfactor, proc, sampling, resample)
+            pyramid(file = filo, dboc = [], force = "yes", olevels = [], poption= "aver")
         except PCIException as e:
-            print (e)
+            print(e)
         except Exception as e:
-            print (e)
-    
+            print(e)
+        print ("\t")
+
     Orthorectified_scene_list.append(filo) 
     count = count + 1
+nspio.enableDefaultReport('term')
 
 # -----------------------------------------------------------------------------------------------------------------
 # D) Footprints and thumbnails creation
@@ -642,10 +665,13 @@ for input_file, m_type, n_chan in zip(Orthorectified_scene_list, Matrix_type2, c
 # -----------------------------------------------------------------------------------------------------------------
 # E) Deleting the intermediary files
 # -----------------------------------------------------------------------------------------------------------------
-
 print("\t")
 print (time.strftime("%H:%M:%S") + " Deleting the intermediary files")
 print("\t")
+
+if unzip_files is True: 
+    shutil.rmtree(fld_unzip)
+
 if output_options == 2: # Keep the degraded PIX orthos as well
 
     for ii in Orthorectified_scene_list: 
