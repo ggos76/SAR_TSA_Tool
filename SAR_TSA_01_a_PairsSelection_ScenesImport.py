@@ -238,7 +238,7 @@ else:
 
 # All validations have suceeded, a time log file is open.
 val_stop = time.time()
-script1_procTime = os.path.join(output_folder, prefix + "TSA_script1_DataIngest_processingTime.txt")
+script1_procTime = os.path.join(output_folder, prefix + "TSA_part_01_Scenes_ingestion_processingTime.txt")
 time_log = open(script1_procTime, "w")
 
 current_time =  time.localtime()
@@ -255,7 +255,6 @@ time_log.write("%s\n" % string_1)
 #----------------------------------------------------------------------------------------------
 #  B) Find input scenes from an MFILE or from an input folder with a specified keyword
 #----------------------------------------------------------------------------------------------
-
 print ("\t")
 print ("-------------------------------------------------------------------------------------------------------------")
 print ("                      Search for input scenes and metadata retrieval                                         ")
