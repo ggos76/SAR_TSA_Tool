@@ -9,12 +9,12 @@
 # -----------------------------------------------------------------------------------------------------------------
 
 # A) Input/Output
-Coregistered_Pairs_Report = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
-output_folder = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500"
-prefix = "QC03M_7262_4500_"
+Coregistered_Pairs_Report = r"E:\test_10\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
+output_folder = r"E:\test_10"
+prefix = "t10"
 
 # B) Elevation source
-DEM_file = r"C:\Users\ggosseli\Desktop\DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"D:\RCMP_prj_overviews\aux_files\QC\DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 # C)  The channels to process for the time series (TSA) generation, can be a subset of the coregistered files channels
@@ -45,7 +45,7 @@ TSA_math_xtra_labels = ["RH div RV", "math_2"]
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
 ortho_bounds_option = 1
-AOI_vector_file = r"C:\Users\ggosseli\Desktop\QC03M_7262_4500\AOI_stack_QC03M_7262_4500_ASC_UTM18TD000.pix"
+AOI_vector_file = r"D:\RCMP_data_RCM\QC_03m\stacks\AOI_QC03m_7158_4495_CP05_A_UTM19TD000_data_ingest.pix"
 AOI_segment_number = 2
 
 ortho_resolution_X = "2"
@@ -53,7 +53,7 @@ ortho_resolution_Y = "2"
 
 # E) General options
 generate_overviews = "yes"         #either "yes" or "no"
-delete_intermediary_files = "yes"   #either "yes" or "no"
+delete_intermediary_files = "no"   #either "yes" or "no"
 
 # Behaviour when output file exists 
 if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"
@@ -248,7 +248,7 @@ if produce_coherence_layers is True:
     else:
         apply_insraw_filter = False
 
-    # The basic validation is done, we can create the empty folders
+    # The basic validation is done, we can create the ouput folders
     Fld_Raw_Interferograms = os.path.join(output_folder, "3_1_1_RAW_interferograms")
     if not os.path.exists(Fld_Raw_Interferograms):
         os.makedirs(Fld_Raw_Interferograms)
@@ -379,7 +379,7 @@ if not os.path.exists(Fld_Output_stack_lists):
     os.makedirs(Fld_Output_stack_lists)
 
 # All validations have suceeded, a time log file is open.
-script3_procTime = os.path.join(output_folder, prefix + "TSA_script3_processingTime.txt")
+script3_procTime = os.path.join(output_folder, prefix + "TSA_part_03_stack_data_preparation_processingTime.txt")
 time_log = open(script3_procTime, "w")
 string_0 = ("Process;proc.time (secs);Data size (MB);Number of files")
 time_log.write("%s\n" % string_0)

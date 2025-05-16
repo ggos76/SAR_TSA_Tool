@@ -12,13 +12,12 @@ https://cupy.dev/
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
-#input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\S1_tests_Ottawa_2024\output\6_Output_stack_lists\VV_coh_stack_statistics.txt"
-input_stack_statistics_file = r"C:\Users\ggosseli\Desktop\QC03M_7171_4497\6_Output_stack_lists\QC03M_7171_4497_RH_coh_stack_statistics.txt"
+stack_lists_folder = r"E:\test_10\6_Output_stack_lists"
 prefix = ""                                # optionnal, leave blank for no prefix
 no_data_value = -32768.0000
 
 #B.1) Time series preparation and data stacking
-stacking_method = "catalyst"             # Valid option are "numpy or "catalyst"
+stacking_method = "numpy"             # Valid option are "numpy or "catalyst"
 output_type = 2                          # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
 # B.2) Filtering and mask options
@@ -67,6 +66,7 @@ import os
 import time
 import locale
 import shutil
+import fnmatch
 from pathlib import Path
 
 import pci
@@ -114,25 +114,19 @@ if python_version < 2.1:
 print("\t")
 
 # A) Check if input file exists and the quantity type (intensity or coherence)
-if not os.path.exists(input_stack_statistics_file):
-    print ("Error - The input_stack_statistics_file does not exist or the path/filename is wrong.")
+if not os.path.exists(stack_lists_folder):
+    print ("Error - The stack_lists_folder does not exist or the path/filename is wrong.")
     sys.exit()
 
-# determining the input type (int or coh)
-check_type = os.path.basename (input_stack_statistics_file)
+# Create a list of stack_list to proccess
+input_stack_lists = []
+for root, dirs, files in os.walk(stack_lists_folder):
+    for filename in fnmatch.filter(files, "*stack_statistics.txt"):
+        input_stack_lists.append(os.path.join(root, filename))
 
-if "int_stack_statistics" in check_type: 
-    data_type_int = True
-    data_type_coh = False
-    print ("The input layers type to stack is Intensity (int)")
-elif "coh_stack_statistics" in check_type:    
-    data_type_int = False
-    data_type_coh = True
-    print ("The input layers type to stack is Coherence (coh)")
-else: 
-    print ("Error - The input file must be a stack_statistics file  (*_stack_statistics.txt)")
+if len(input_stack_lists) == 0:
+    print ("Error - No stack_statistics.txt file found in the stack_lists_folder")
     sys.exit()
-
 
 #B) Time series preparation
 #B.1A) stacking_method
@@ -155,7 +149,6 @@ else:
 if output_type not in [1,2,3]: 
     print ("Error - the output type must ne 1, 2 or 3")
     sys.exit()
-
 
 # B.2) Mean filter
 if apply_mean_filter.lower() in yes_validation_list:
@@ -216,18 +209,23 @@ else:
 # D) Creating the output folder and the output file name.  
     # Note: In anticipation for full automatation, we will create automatically the output folder and 
     # the output file name.      
-two_up = Path(input_stack_statistics_file).resolve().parents[1]
+two_up = Path(input_stack_lists[0]).resolve().parents[1]
 stack_folder = "7_TSA_stacks"
 
 output_folder = os.path.join (two_up, "7_TSA_stacks")
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
-base = os.path.basename(input_stack_statistics_file)
-base_out = base[:-20]
-print (base_out)
+
+outfile_tsa_basename = []
+outfile_tsa_datatype = []
+for ii in input_stack_lists:
+    base1 = os.path.basename(ii)
+    base_out = base1[:-21]
+    print (base_out)
 
 
+sys.exit()
 # For output_type == 1  or output_type == 3
 outfile_tsa_analysis = os.path.join(output_folder, (prefix + base_out + "TSA_stack_analysis"))
 check_out = outfile_tsa_analysis
@@ -237,13 +235,16 @@ check_out = outfile_tsa_analysis_stack
 # For output_type == 3
 outfile_tsa_data = os.path.join(output_folder, (prefix + base_out + "TSA_stack_data"))
 
+
+'''
 #Check if the specified output file already exists. If yes error.
+REPLACE BY IF_FILE_EXISTS
 if os.path.exists(check_out):
     print("Warning - the output file already exists")
     print("Output_file-->" + check_out )
     print("Delete the existing file or specify a different name")
     sys.exit()
-
+'''
 # -----------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------    
 #                                           Main Program
@@ -620,7 +621,7 @@ if use_catalyst is True:
     
 
     if data_type_coh is True:  # hack to make coherence data works with PSSARTSA to ensure time ordered channels. 
-        # We create the "Acquisition DateTime" metadata and fiil it with the  "Dep_Acquisition_DateTime"
+        # We create the "Acquisition DateTime" metadata and fili it with the  "Dep_Acquisition_DateTime"
        for ii in input_file_list:  
        
             with ds.open_dataset(ii,ds.eAM_WRITE) as ds12:   # Note .eAM_WRITE
