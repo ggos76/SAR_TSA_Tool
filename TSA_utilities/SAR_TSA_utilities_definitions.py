@@ -384,10 +384,13 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
 def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_channels, TSA_channel_labels):
 
     for in_chan in TSA_channels:
+        print (in_chan)
         in_label = TSA_channel_labels[in_chan - 1]
 
         # A) Search for the file to process
         keyword = "*_" + in_label + suffix + ".pix"
+
+        print (keyword)
         file_to_process = []
         for root, dirs, files in os.walk(search_folder):
             for filename in fnmatch.filter(files, keyword):
@@ -419,7 +422,7 @@ def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_chan
                 aux = ds5.aux_data
 
                 # Extract the compact date and compute the midpoint in needed
-                if suffix == "_int":
+                if suffix == "_int" or suffix =="":
                     Acquisition_DateTime = aux.get_file_metadata_value('Acquisition_DateTime')
                     date_ref1 = Acquisition_DateTime[:10]
                     date_ref2 = date_ref1.replace("-", "")
@@ -462,8 +465,12 @@ def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_chan
                 # Compute some first order statistics
                 raster2 = raster2.reshape(-1)
                 raster3 = np.delete(raster2, np.where(raster2 == float(-32768.00000)))
-                raster4 = np.delete(raster3, np.where(raster3 > 1.0))
-
+                if suffix == "_coh":
+                    raster4 = np.delete(raster3, np.where(raster3 > 1))
+                elif suffix == "_int":
+                    raster4 = np.delete(raster3, np.where(raster3 > 1.5))
+                else :
+                    raster4 = np.delete(raster3, np.where(raster3 > 90))
 
                 arr_mean = str(np.mean(raster4))
                 arr_std = str(np.std(raster4))
