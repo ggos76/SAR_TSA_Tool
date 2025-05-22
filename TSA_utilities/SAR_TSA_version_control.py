@@ -1,11 +1,11 @@
 
-'''----------------------------------------------------------------------------------------------
- * Gabriel Gosselin, CCRS   2024-2025                                                           -
+'''-----------------------------------------------------------------------------------------------
+ * Gabriel Gosselin, CCRS   2024-2025                                                            -
  * -----------------------------------------------------------------------------------------------
 '''
-
 import sys
 
+# ------------------------------------------------------------------------------------------------
 def version_control (vs_catalyst, vs_python):
     
     min_python_vs = (3,10,0) 
@@ -17,7 +17,7 @@ def version_control (vs_catalyst, vs_python):
         print ("Error - The minimum python version requirement is not meet")
         sys.exit()
      
-    min_catalyst_vs =(3,1,50)
+    min_catalyst_vs =(3,1,0)
     version_tuple = tuple(map(int, vs_catalyst.split(".")))
     vs_catalyst = version_tuple
     print ("Minimum Catalyst install to run the TSA scripts: " + str(min_catalyst_vs))

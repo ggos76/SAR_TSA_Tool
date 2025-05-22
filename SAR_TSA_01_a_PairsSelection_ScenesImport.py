@@ -3,7 +3,6 @@
  * Gabriel Gosselin, CCRS.  2024-2025                                                           -
  * ----------------------------------------------------------------------------------------------
 '''
-
 # ----------------------------------------------------------------------------------------------
 #  User defined variables
 # ----------------------------------------------------------------------------------------------
@@ -18,8 +17,8 @@ sentinel_swath = 4
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
-prefix = "t10_"
-output_folder = r"E:\test_10"
+prefix = "t25_"
+output_folder = r"E:\test_25"
 
 # Elevation source
 DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
@@ -27,9 +26,9 @@ DEM_elevation_channel = 1
 
 # Start and Stop date        # Valid options are yes and no
 # Must be in the following format YYYYMMDD
-use_start_stop_date =  "no"
-start_date_YYYYMMDD = 20180612
-stop_date_YYYYMMDD = 20180925
+use_start_stop_date =  "yes"
+start_date_YYYYMMDD = 20250220
+stop_date_YYYYMMDD = 20250418
 
 # InSAR pairs selection mode
 # 1: All pairs temporal             2: Single reference file
@@ -56,8 +55,7 @@ max_delta_days = 50
 # Subset options # Accepted values are yes or no
 subset_input_data = "no"
 
-# Area of Interest settings
-AOI_vector_file = r"D:\HBL_S1A_mapping\F186_clip_area_UTM_small.pix"
+AOI_vector_file = r"D:\HBL_S1A_mapping\F186_clip_area_UTM_small.pix"      # mandatory when subset_input_data = "yes"
 AOI_segment_number = 2
 
 # How to fill areas beyond the AOI.
@@ -69,15 +67,14 @@ generate_overviews = "yes"
 # keep or delete intermediate files - either yes or no. No is recommended.
 delete_intermediary_files = "no"
 # Behaviour when output file exists 
-if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"
+if_file_exists = "skip"     # Valid options are "skip" or "regenerate"
 
 # ---------------------------------------------------------------------------------------------------------------------
 #  Scripts -  Notes.
 # ---------------------------------------------------------------------------------------------------------------------
 '''
-1) There is no verification if the specified DEM covers completely the spatial
-   extents of the AOI. If not the script will run to completion but all
-   interferograms will be blank after INSRAW.
+1) The use_start_stop_date applies once the data are unzipped. There is no mechanism in place to unzip the file only if 
+    the date is within the specified range.
 
 '''
 # ---------------------------------------------------------------------------------------------------------------------
@@ -87,9 +84,7 @@ import sys
 import os
 import time
 import locale
-import fnmatch
 from datetime import datetime
-import zipfile
 import shutil
 
 import pci
@@ -100,6 +95,7 @@ from pci.iii import iii
 from pci.exceptions import PCIException
 from pci.api import datasource as ds
 from pci.api.inputsource import InputSourceFactoryBuilder
+from TSA_utilities.SAR_TSA_version_control import version_control 
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
 from TSA_utilities.SAR_TSA_utilities_definitions import unzip_batch
 
@@ -119,17 +115,10 @@ no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list+no_validation_list
 GB = 1073741824
 
-# PCI Version control - do nothing for now.
-print("\t")
-print(pci.version)
-
-print("Installed python version: " + sys.version)
-py1 = str(sys.version_info[0]); py2 = str(sys.version_info[1]); py3 = (py1 + "." + py2); python_version = float(py3)
-if python_version < 3.6:
-    print("You are using Python v" + str(python_version))
-    print("You need to update to python 3.6 or newer versions")
-    sys.exit()
-print("\t")
+# Version control
+vs_catalyst = pci.version
+vs_python = sys.version_info[:3]
+version_control (vs_catalyst, vs_python)
 
 # A.1) 
 if not os.path.exists(parent_folder_search):
@@ -266,10 +255,9 @@ if unzip_files is True:
     
     unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_regn, info_message_skip)
     
-   
     proc_stop_time = time.time()
     folder = fld_unzip
-    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
     string_1 = ("Files unzipping: " + out_folder_time_size) 
     time_log.write("%s\n" % string_1)
     
@@ -574,8 +562,8 @@ if pairs_selection_mode == 4:
                 mfile = VendorInputs_sorted[jj]
                 ref = Acquisition_DateTime3_sorted[ii]
                 dep = Acquisition_DateTime3_sorted[jj]
-                print("   Reference file: " + ref)
-                print("   Dependent file: " + dep)
+                print("   Reference file: " + str(ref))
+                print("   Dependent file: " + str(dep))
 
                 a = datetime.strptime(str(ref), date_format)
                 b = datetime.strptime(str(dep), date_format)
@@ -749,7 +737,7 @@ for ii in Acquisition_DateTime2:
 
 proc_stop_time = time.time()
 folder = fld_scenes_import
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Metadata retrieval and pairs selection: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
@@ -933,7 +921,7 @@ with open(file, "w") as f:
 
 proc_stop_time = time.time()
 folder = fld_scenes_import
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Scenes ingestion: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
