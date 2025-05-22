@@ -3,15 +3,13 @@
  * Gabriel Gosselin, CCRS.  2024-2025                                                                              -
  * -----------------------------------------------------------------------------------------------------------------
 '''
-
 # -----------------------------------------------------------------------------------------------------------------
 #  Part 1: User defined variables
 # -----------------------------------------------------------------------------------------------------------------
-
 # A) Input Files
-Ingested_pairs_list_for_coregistration = r"E:\test_10\1_Scenes_Import\t10_03_Ingested_pairs_list_for_coregistration.txt"
-output_folder = r"E:\test_10"
-prefix = ""
+Ingested_pairs_list_for_coregistration = r"E:\test_25\1_Scenes_Import\t25_03_Ingested_pairs_list_for_coregistration.txt"
+output_folder = r"E:\test_25"
+prefix = "t25_"
 
 # B) Coregistration options.
 # Select a co-registered file for line/column consistency for subsequent times
@@ -58,6 +56,7 @@ from pci.api import datasource as ds
 from TSA_utilities.SAR_TSA_utilities_definitions import nan_replace
 from TSA_utilities.SAR_TSA_utilities_definitions import file_size_check
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
+from TSA_utilities.SAR_TSA_version_control import version_control 
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
@@ -74,20 +73,10 @@ no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list + no_validation_list
 GB = 1073741824
 
-#  Version control - do nothing for now.
-print("\t")
-print(pci.version)
-
-print("Installed python version: " + sys.version)
-py1 = str(sys.version_info[0])
-py2 = str(sys.version_info[1])
-py3 = (py1 + "." + py2)
-python_version = float(py3)
-if python_version < 3.6:
-    print("You are using Python v" + str(python_version))
-    print("You need to update to Python 3.6 or newer versions")
-    sys.exit()
-print("\t")
+# Version control
+vs_catalyst = pci.version
+vs_python = sys.version_info[:3]
+version_control (vs_catalyst, vs_python)
 
 # A) Input files
 if not os.path.exists(Ingested_pairs_list_for_coregistration):
@@ -424,7 +413,7 @@ with open(coregistration_report, "w") as f:
 
 proc_stop_time = time.time()
 folder = Fld_Coregistration
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Input scenes coregistration:" + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
