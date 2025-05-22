@@ -844,7 +844,7 @@ def get_folder_proctime_and_size (folder_path, proc_stop_time, proc_start_time):
     total_files = str(len(input_files_list))
 
     out_folder_time_size= (";" + time_sec + ";" +size_mb + ";" + total_files)
-    return out_folder_time_size
+    return out_folder_time_size, size_mb
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
