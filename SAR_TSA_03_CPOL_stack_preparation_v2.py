@@ -8,30 +8,30 @@
 # -----------------------------------------------------------------------------------------------------------------
 
 # A) Input/Output
-Coregistered_Pairs_Report = r"C:\Users\ggosseli\Desktop\T15_outputs\2_Coregistered_Scenes\04_Coregistered_Pairs_Report.txt"
-output_folder = r"C:\Users\ggosseli\Desktop\T15_outputs"
-prefix = "T15_"
+Coregistered_Pairs_Report = r"E:\test_25\2_Coregistered_Scenes\t25_04_Coregistered_Pairs_Report.txt"
+output_folder = r"E:\test_25"
+prefix = "t25_"
 
 # B) Filtering options / Filtering is mandatory for Compact Pol analysis
-filter_type = "psboxcar"          # options are psboxcar or pspolfil
+filter_type = "pspolfil"          # options are psboxcar or pspolfil
 filter_size_X_Y = [7,7]           # PSPOLFIL is always square, only the X value will be used. 
 
 # C) Time-series creation. Compact Pol discriminators to stack. Look at the Part 2: Notes section for more information. 
 CPDIS_to_stack = [10, 11]
 produce_CPDIS_RGB = "yes"           # valid options are "yes" or "no"
 
-apply_masking = "yes"       # Valid option are "yes" or "no"
+apply_masking = "no"       # Valid option are "yes" or "no"
 mask_type = "exclusion"    # Valid option are "inclusion" or "exclusion"
-mask_file = r"C:\Users\ggosseli\Desktop\DEM\mask_files_for_tests.pix"
+mask_file = r"D:\t25_Ortho_aoi.pix"
 mask_seg_number = [2]
 
 # D) Orthorectification options
 # Ortho bounds options: 1 (from an AOI file)  or 2 (from the input file)
-DEM_file = r"C:\Users\ggosseli\Desktop\DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"D:\RCMP_prj_overviews\aux_files\QC\DEM\Glo30DEM_CanUS_LatLong.tif"
 DEM_elevation_channel = 1
 
 ortho_bounds_option = 1
-AOI_vector_file = r"C:\Users\ggosseli\Desktop\DEM\AOI_ortho.pix"
+AOI_vector_file = r"D:\t25_Ortho_aoi.pix"
 AOI_segment_number = 2
 
 ortho_resolution_X = "2"
@@ -105,6 +105,7 @@ from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_
 from TSA_utilities.SAR_TSA_utilities_definitions import file_size_check
 from TSA_utilities.SAR_TSA_utilities_definitions import stack_masking
 from TSA_utilities.SAR_TSA_utilities_definitions import create_list
+from TSA_utilities.SAR_TSA_version_control import version_control 
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
@@ -128,20 +129,10 @@ produce_math_layers = "no"
 TSA_math_xtra_channels = 2
 TSA_math_xtra_labels = ["n1", "n2"]
 
-#  Versions control
-print("\t")
-print(pci.version)
-
-print("Installed python version: " + sys.version)
-py1 = str(sys.version_info[0])
-py2 = str(sys.version_info[1])
-py3 = (py1 + "." + py2)
-python_version = float(py3)
-if python_version < 2.0:
-    print("You are using Python v" + str(python_version))
-    print("You need to update to Python 3.8 or newer versions")
-    sys.exit()
-print("\t")
+# Version control
+vs_catalyst = pci.version
+vs_python = sys.version_info[:3]
+version_control (vs_catalyst, vs_python)
 
 # -----------------------------------------------------------------------------------------------------------------
 # A) Input files and folder
@@ -387,12 +378,11 @@ for ii in input_scenes_list:
             except Exception as e:
                 print(e)   
         
-
     if filter_type == "pspolfil": 
         out_f = ("_pspolfil_" + str(filter_size_X) +"x"+ str(filter_size_X))
         filo = os.path.join (Fld_CPOL, base_out + out_f + ".pix")
-        flsz = filter_size_X_Y[0]
-        nlook = [1]
+        flsz = [filter_size_X]
+        nlook = [1.0]
 
         print (" output file--> " + filo)
         if os.path.exists (filo) and if_file_exists == "skip": 
@@ -441,7 +431,7 @@ for ii in input_scenes_list:
 
 proc_stop_time = time.time()
 folder = Fld_CPOL
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("CompactPol parameters, files filtering and parameters generation: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
@@ -530,7 +520,7 @@ for in_psdis, in_boxcar in zip(outfiles_pscomdis, out_filtered_files):
 
 proc_stop_time = time.time()
 folder = Fld_CPOL_pscomdis_export
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Compact Pol parameters, exporting individual files: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
@@ -552,10 +542,9 @@ ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_
 
 proc_stop_time = time.time()
 folder = Fld_CPOL_ortho
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Compact Pol parameters, orthorectification: " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
-
 
 # --------------------------------------------------------------------------------------------------------------
 # E) Preparation for the Time Series analysis
@@ -580,7 +569,7 @@ if apply_masking is True:
 
     proc_stop_time = time.time()
     folder = Fld_CPOL_ortho
-    out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+    out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
     string_1 = ("Compact Pol parameters, applying " + mask_type + " mask" + out_folder_time_size) 
     time_log.write("%s\n" % string_1)
 
@@ -619,7 +608,7 @@ create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_channels
 
 proc_stop_time = time.time()
 folder = Fld_CPOL_ortho
-out_folder_time_size = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
+out_folder_time_size, size_mb = get_folder_proctime_and_size (folder, proc_stop_time, proc_start_time)
 string_1 = ("Compact Pol parameters, stack lists creation " + out_folder_time_size) 
 time_log.write("%s\n" % string_1)
 
