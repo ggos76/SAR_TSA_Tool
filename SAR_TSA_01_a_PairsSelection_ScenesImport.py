@@ -13,7 +13,7 @@ unzip_files_first = "yes"           # Valid options are "yes" or "no"
 
 # Applies only to Sentinel-1 data. Ingest a single swath or all swaths.
 # Options are 1, 2, 3, 4 (all swaths)
-sentinel_swath = 4
+sentinel_swath = 3
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
@@ -26,24 +26,24 @@ DEM_elevation_channel = 1
 
 # Start and Stop date        # Valid options are yes and no
 # Must be in the following format YYYYMMDD
-use_start_stop_date =  "yes"
+use_start_stop_date =  "no"
 start_date_YYYYMMDD = 20250220
 stop_date_YYYYMMDD = 20250418
 
 # InSAR pairs selection mode
 # 1: All pairs temporal             2: Single reference file
 # 3: With baseline filters (SBAS)   4: Subsequent pairs
-pairs_selection_mode = 4
+pairs_selection_mode = 3
 
 # Only used when pairs_selection_mode=2
 # Must be in the following format YYYYMMDD, for example   20190519
-pairs_selection_mode_2_referencedate = 20140817
+pairs_selection_mode_2_referencedate = 20250328
 
 # Use only  with pairs_selection_mode=3; distances are in meters
 absolute_perp_baseline_min = 0
 absolute_perp_baseline_max = 250
 # Temporal baseline in days,  min=0 ,  max=365
-max_temporal_baseline = 70
+max_temporal_baseline = 45
 
 # Subsequent pairs options.
 # Number of pairs to form for every input scene. The files at the beginning and the end of the time series
@@ -114,6 +114,8 @@ yes_validation_list = ["yes", "y", "yse", "ys"]
 no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list+no_validation_list
 GB = 1073741824
+h_temp_baseline = "1000"
+h_perp_baseline = "1000"
 
 # Version control
 vs_catalyst = pci.version
@@ -142,6 +144,7 @@ if not os.path.exists(fld_scenes_import):
     os.makedirs(fld_scenes_import)
 Output_InSARpairs_report_name = prefix + "02_Pair_selection_and_baselines_list.txt"
 
+fld_insinfo = fld_scenes_import
 # A.3) INSINFO EARLY VALIDATION
 if absolute_perp_baseline_min < 0:
     print("Error - The perpendicular baseline minimum must be equal or superior to 0 (absolute value)")
@@ -363,12 +366,14 @@ dependent_file_list = []
 date_YYYYMMDD_ref = []
 date_YYYYMMDD_dep = []
 
-#--------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # 1- All pairs temporal
+# ---------------------------------------------------------------------------------------------------------------------
 pair = 0
 if pairs_selection_mode == 1:
 
-    print("Selected coregistration option:1 - All pairs temporal")
+    pairs_selection_list = []
+    print("Selected option for pairs selection: 1 - All pairs temporal")
     print("\t")
 
     for ii in range(0, maximg):
@@ -380,42 +385,32 @@ if pairs_selection_mode == 1:
 
                 ref = Acquisition_DateTime3_sorted[ii]
                 dep = Acquisition_DateTime3_sorted[jj]
-                tfile = os.path.join(fld_insinfo, prefix + "_" + str(pair)
-                                     + "_INSINFO" + "_ref_" + ref
-                                     + "_dep_" + dep + ".txt")
 
                 print("\t")
                 print(((time.strftime("%H:%M:%S")) + " Generating the INSINFO report"))
                 print("Reference file: " + filref)
                 print("Dependent file: " + mfile)
 
-                try:
-                    insinfo(filref, mfile, tfile)
-                    insinfo_report_list.append(tfile)
-                    reference_file_list.append(filref)
-                    dependent_file_list.append(mfile)
-                    date_YYYYMMDD_ref.append(Acquisition_DateTime3_sorted[ii])
-                    date_YYYYMMDD_dep.append(Acquisition_DateTime3_sorted[jj])
-                    pair = pair + 1
-
-                except PCIException as e:
-                    print(e)
-                except Exception as e:
-                    print(e)
-
-#--------------------------------------------------------------------------------------------------
+                string1 = (str(pair) + ";" + filref +";" + str(ref) + ";" + mfile + ";" + str(dep) +
+                              ";" + h_temp_baseline + ";" + h_perp_baseline)
+                pairs_selection_list.append(string1)
+  
+                pair = pair + 1
+# ---------------------------------------------------------------------------------------------------------------------
 # 2- Single reference file
+# ---------------------------------------------------------------------------------------------------------------------
 pair = 0
 if pairs_selection_mode == 2:
-
-    print("Selected coregistration option: 2 - Single reference file")
+    pairs_selection_list = []
+    pairs_selection_mode_2_referencedate = str(pairs_selection_mode_2_referencedate)
+    print("Selected option for pairs selection: 2 - Single reference file")
     print("\t")
 
     ii_ref = -1000  # impossible value
     for c, value in enumerate(Acquisition_DateTime3_sorted):
         if value == pairs_selection_mode_2_referencedate:
             print(c, value)
-            ii_ref=c
+            ii_ref = c
     # Validation in case where the specified date is not found
     if ii_ref == -1000:
         print("Error - The specified date is not valid ( " + pairs_selection_mode_2_referencedate + " )")
@@ -440,34 +435,28 @@ if pairs_selection_mode == 2:
             print("Reference file: " + filref)
             print("Dependent file: " + mfile)
 
-            try:
-                insinfo(filref, mfile, tfile)
-                insinfo_report_list.append(tfile)
-                reference_file_list.append(filref)
-                dependent_file_list.append(mfile)
-                date_YYYYMMDD_ref.append(
-                    Acquisition_DateTime3_sorted[ii_ref])
-                date_YYYYMMDD_dep.append(Acquisition_DateTime3_sorted[jj])
-                pair = pair + 1
 
-            except PCIException as e:
-                print(e)
-            except Exception as e:
-                print(e)
-#--------------------------------------------------------------------------------------------------
+
+            string1 = (str(pair) + ";" + filref +";" + str(ref) + ";" + mfile + ";" + str(dep) +
+                                                         ";" + h_temp_baseline + ";" + h_perp_baseline)
+            pairs_selection_list.append(string1)
+            pair = pair + 1
+
+# ---------------------------------------------------------------------------------------------------------------------
 # 3- Baseline filters
-
+# ---------------------------------------------------------------------------------------------------------------------
 pair = 0
 if pairs_selection_mode == 3:
     from pci.insinfo import insinfo
-
-    print("Selected coregistration option:3 - Baseline filters")
+    pairs_selection_list = []
+    print("Selected option for pairs selection: 3 - Baseline filters")
     print("\t")
 
     for ii in range(0, maximg):
         for jj in range(0, maximg):
             if ii < jj:
 
+                print(" ------------------------------------------------------------- ")
                 filref = VendorInputs_sorted[ii]
                 mfile = VendorInputs_sorted[jj]
 
@@ -512,6 +501,7 @@ if pairs_selection_mode == 3:
 
                 pbaseline2 = pbaseline.split(":")
                 Pbase = abs(float(pbaseline2[1]))
+                Pbase_out = pbaseline2[1]
 
                 if (Pbase > absolute_perp_baseline_min and Pbase < absolute_perp_baseline_max and temp_base < max_temporal_baseline):
 
@@ -519,11 +509,14 @@ if pairs_selection_mode == 3:
                     insinfo_report_list.append(tfile)
                     reference_file_list.append(filref)
                     dependent_file_list.append(mfile)
-                    date_YYYYMMDD_ref.append(
-                        Acquisition_DateTime3_sorted[ii])
-                    date_YYYYMMDD_dep.append(
-                        Acquisition_DateTime3_sorted[jj])
+                    date_YYYYMMDD_ref.append(Acquisition_DateTime3_sorted[ii])
+                    date_YYYYMMDD_dep.append(Acquisition_DateTime3_sorted[jj])
                     pair = pair + 1
+                   
+                    string1 = (str(pair) + ";" + filref +";" + str(ref) + ";" + mfile + ";" + str(dep) + ";" +
+                               tbaseline4 + ";" + Pbase_out)
+                    pairs_selection_list.append(string1)
+
                 else:
                     print("Baselines conditions not satisfied")
                     os.remove(tfile)
@@ -539,7 +532,7 @@ if pairs_selection_mode == 3:
 if pairs_selection_mode == 4:
 
     date_format = "%Y%m%d"
-    pair_selection_4_list = []
+    pairs_selection_list = []
 
     # Hardcoded values since we don't have access to INSINFO
     Perpendicular_baseline = "1000"
@@ -575,8 +568,8 @@ if pairs_selection_mode == 4:
                     Temporal_baseline = str(delta.days)
 
                     string1 = (str(pair) + ";" + filref +";" + str(ref) + ";" + mfile + ";" + str(dep) + ";" +
-                               Temporal_baseline+ ";"+ Perpendicular_baseline)
-                    pair_selection_4_list.append(string1)
+                               Temporal_baseline+ ";" + Perpendicular_baseline)
+                    pairs_selection_list.append(string1)
 
                     pair = pair + 1
                 else:
@@ -588,14 +581,17 @@ if pairs_selection_mode == 4:
 
             attempt = attempt + 1
 
-    file=open(os.path.join(fld_scenes_import,Output_InSARpairs_report_name), "w")
-    file.write('\n'.join(pair_selection_4_list))
-    file.close()
+#--------------------------------------------------------------------------------------------------
+# Write the selected pairs to a file
+file=open(os.path.join(fld_scenes_import,Output_InSARpairs_report_name), "w")
+file.write('\n'.join(pairs_selection_list))
+file.close()
 
 
 #-----------------------------------------------------------------------------
 # C) Data retrieval from the generated INSINFO report(s)
 #-----------------------------------------------------------------------------
+"""
 if pairs_selection_mode == 3:
 
     verbose_log = os.path.join(fld_scenes_import, Output_InSARpairs_report_name)
@@ -638,7 +634,7 @@ if pairs_selection_mode == 3:
     ellapse_time = str(round(insinfo_stop - insinfo_start, 2))
     string2 = string1 + ellapse_time
     time_log.write("%s\n" % string2)
-
+"""
 
 print("\t")
 print("--------------------------------------------------------------------------------------------------------------")
@@ -776,8 +772,8 @@ proc_start_time = time.time()
 #A = [1,2,3,4,5,6]
 #B = A[:len(A)//2]
 #C = A[len(A)//2:]
-ReferenceFiles_output_FilenamesList=output_file_name[:len(output_file_name) // 2]   # First half of the list
-DependentFiles_output_FilenamesList=output_file_name[len(output_file_name) // 2:]   # Second half of the list
+ReferenceFiles_output_FilenamesList = output_file_name[:len(output_file_name) // 2]   # First half of the list
+DependentFiles_output_FilenamesList = output_file_name[len(output_file_name) // 2:]   # Second half of the list
 
 print("\t")
 print("---------------------------------------------------------------------------------------------------------------")
@@ -902,8 +898,7 @@ for pair, ref_in, dep_in, ref_out, dep_out in zip(pair_number, Reference_file, D
             print(e)
 
 # Creating a list of ingested files that can be reused later.
-file = os.path.join(fld_scenes_import, prefix +
-                    "03_Ingested_pairs_list_for_coregistration.txt")
+file = os.path.join(fld_scenes_import, prefix + "03_Ingested_pairs_list_for_coregistration.txt")
 with open(file, "w") as f:
     for pair, ref_ingested, ref_date, dep_ingested, dep_date in \
        zip(pair_number,
