@@ -95,6 +95,7 @@ from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_
 from TSA_utilities.SAR_TSA_other_layers import inc_angle_layer
 from TSA_utilities.SAR_TSA_other_layers import math_layers_prod
 from TSA_utilities.SAR_TSA_other_layers import math_layers_split
+from TSA_utilities.SAR_TSA_version_control import version_control 
 
 locale.setlocale(locale.LC_ALL, "")
 locale.setlocale(locale.LC_NUMERIC, "C")
@@ -116,21 +117,10 @@ Fld_Coregistration = os.path.join(output_folder, "2_Coregistered_Scenes")
 AOI_file = AOI_vector_file
 AOI_file_segment_number = AOI_segment_number
 
-#  Versions control
-print("\t")
-print(pci.version)
-
-print("Installed python version: " + sys.version)
-py1 = str(sys.version_info[0])
-py2 = str(sys.version_info[1])
-py3 = (py1 + "." + py2)
-python_version = float(py3)
-if python_version < 2.0:
-    print("You are using Python v" + str(python_version))
-    print("You need to update to Python 3.8 or newer versions")
-    sys.exit()
-print("\t")
-
+# Version control
+vs_catalyst = pci.version
+vs_python = sys.version_info[:3]
+version_control (vs_catalyst, vs_python)
 # -----------------------------------------------------------------------------------------------------------------
 # A) Input/Output
 if not os.path.exists(Coregistered_Pairs_Report):

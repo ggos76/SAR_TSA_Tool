@@ -77,6 +77,7 @@ from TSA_utilities.SAR_TSA_utilities_definitions import file_size_check
 from TSA_utilities.SAR_TSA_utilities_definitions import stack_masking
 from TSA_utilities.SAR_TSA_utilities_definitions import stack_min_max
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
+from TSA_utilities.SAR_TSA_version_control import version_control
 
 import numpy as np
 locale.setlocale(locale.LC_ALL, "")
@@ -93,20 +94,10 @@ yes_validation_list = ["yes", "y", "yse", "ys"]
 no_validation_list = ["no", "n", "nn"]
 yes_no_validation_list = yes_validation_list + no_validation_list
 
-#  Version control - do nothing for now.
-print("\t")
-print(pci.version)
-
-print("Installed python version: " + sys.version)
-py1 = str(sys.version_info[0])
-py2 = str(sys.version_info[1])
-py3 = (py1 + "." + py2)
-python_version = float(py3)
-if python_version < 2.1:
-    print("You are using Python v" + str(python_version))
-    print("You need to update to Python 3.6 or newer versions")
-    sys.exit()
-print("\t")
+# Version control
+vs_catalyst = pci.version
+vs_python = sys.version_info[:3]
+version_control (vs_catalyst, vs_python)
 
 # A) Check if input file exists and the quantity type (intensity or coherence)
 if not os.path.exists(stack_lists_folder):
