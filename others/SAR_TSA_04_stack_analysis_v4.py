@@ -12,13 +12,13 @@ https://cupy.dev/
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
-stack_lists_folder = r"C:\Users\ggosseli\Desktop\T15_outputs\6_TSA_stack_lists"
-prefix = "T15_"                                # optionnal- prefix for output stacksm, leave blank for no prefix
+stack_lists_folder = r"E:\QC03M_7158_4495_CP05_A\6_TSA_stack_lists_sl04"
+prefix = "sl04_"                                # optionnal- prefix for output stacksm, leave blank for no prefix
 no_data_value = -32768.0000
 
 #B.1) Time series preparation and data stacking
 stacking_method = "catalyst"             # Valid option are "numpy or "catalyst"
-output_type = 3                          # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
+output_type = 2                          # 1: analysis layers only    2: analysis and stack together   3: analysis and stack separate
 
 # B.2) Filtering and mask options
 apply_masking = "no"       # Valid option are "yes" or "no"
@@ -39,6 +39,8 @@ if_file_exists = "skip"     # Valid options are "skip" or "regenerate"
 #  Scripts -  Notes.
 # -----------------------------------------------------------------------------------------------------
 '''
+2025-06-06 - The MUMPY solution needs updates to be working again. 
+
 1) There is no verification if the specified DEM covers completely the spatial
    extents of the AOI. If not the script will run to completion but all
    interferograms will be blank after INSRAW.
@@ -309,7 +311,7 @@ for in_stack_file in input_stack_files:
         data_type_coh = False
 
     #-----------------------------------------------------------------------------------------------------------------
-    # STACKING METHOD USING NUMPY
+    # STACKING METHOD USING NUMPY   --  NEED UPDATES, not working. 
     #------------------------------------------------------------------------------------------------------------------
     if use_numpy is True: 
 
@@ -341,8 +343,6 @@ for in_stack_file in input_stack_files:
                     print(e)
                 count = count + 1
         # ---------------------------------------------------------------------------------------------------------------------
-
-
         # here we assume the list to be in the chronological order since it was created by TSA_02
         print("\t")
         print(time.strftime("%H:%M:%S") + " Copying and moving the first file of the stack")
