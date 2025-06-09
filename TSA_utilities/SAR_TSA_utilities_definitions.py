@@ -568,7 +568,8 @@ def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_chan
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def file_size_check (files_list):
 
     # Safety check, File size and projection verifications. All files must have the same number of lines and
@@ -614,7 +615,10 @@ def file_size_check (files_list):
         print("All input files have the same number of lines and columns")
     return()
 
-# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder):
 
     
@@ -656,8 +660,6 @@ def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_va
     with open(file_model, "w") as f:
         f.write("\n".join(output_model_file))
 
-
-    
     nb_files = str(len(input_stack))
     count = 1
     for ii in input_stack:
@@ -756,6 +758,74 @@ def stack_min_max (input_stack, no_data_value, min_floor, max_floor, reassign_ty
     return ()
     
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+def stack_chans_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value):
+
+    output_folder = os.path.dirname(input_stack)
+
+    #A) Convert the input vector mask to a bitmap
+    fili = mask_file
+    dbvs = mask_seg_number              
+    filo = input_stack   
+    dbsd     = "canusa_border_mask"                
+    pixres   = []           
+    ftype    = "pix"             
+    foptions = ""                
+
+    poly2bit( fili, dbvs, filo, dbsd, pixres, ftype, foptions )
+
+
+    # Depending of the previous pre-procesing that were applied, we do not know the bitmap segment number
+    # corresponding to the CANUSA mask. We retrieve here the segment number of the most recent bitmap.  
+    with ds.open_dataset(input_stack, ds.eAM_READ) as ds3:
+        bitmap_list = ds3.bitmap_ids
+
+        last_bitmap = bitmap_list[-1]  # Get the last bitmap segment number
+        chans_list = []
+        chans = ds3.chan_count
+        for ii in range (1,chans+1,1): 
+            chans_list.append(ii)
+
+    
+    if mask_type == "exclusion":
+    
+        count = 1
+        for in_chan in chans_list:
+            aa = ("   masking channel " + str(count) + " of " + str(len(chans_list)))
+            sys.stdout.write("\r" + aa)
+            sys.stdout.flush()
+
+            model_canusa_exclusion = os.path.join(output_folder, "Canusa_exclusion_temp.txt")
+            model_lines = []
+            string_1 = "if %%" + str(last_bitmap) + " = 0 then"
+            model_lines.append(string_1)
+            string_1 = "%" + str(in_chan) + " = " + str(no_data_value)
+            model_lines.append(string_1)
+            string_1 = "endif"
+            model_lines.append(string_1)
+
+            with open(model_canusa_exclusion, "w") as f:
+                f.write("\n".join(model_lines))
+
+            file = input_stack
+            source = model_canusa_exclusion
+            undefval = []
+            model(file, source, undefval)
+        
+            count = count + 1    
+         
+    print("\t")   
+    return()        
+
+
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 def date_formater (input_date):
 
     gpsd = str(input_date)
@@ -766,6 +836,8 @@ def date_formater (input_date):
     output_date_format = (gps_MM + "/" + gps_DD + "/" + gps_YYYY)
     return (output_date_format)
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def check_YYYYMMDD (date_YYYYMMDD, variable_name):
 
@@ -824,6 +896,8 @@ def check_YYYYMMDD (date_YYYYMMDD, variable_name):
     return ()
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def get_folder_proctime_and_size (folder_path, proc_stop_time, proc_start_time):
     total_size_bytes = sum(
         os.path.getsize(os.path.join(dirpath, file))
@@ -847,7 +921,8 @@ def get_folder_proctime_and_size (folder_path, proc_stop_time, proc_start_time):
     return out_folder_time_size, size_mb
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_regn, info_message_skip):
       
     if not os.path.exists(fld_unzip):

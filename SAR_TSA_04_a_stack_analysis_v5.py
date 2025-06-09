@@ -18,7 +18,7 @@ no_data_value = -32768.0000
 
 use_stack_subset = "yes"               # Valid option are "yes" or "no"
 sub_stack_start_date = 20250417        # must be an interger in YYYYMMDD format
-sub_stack_stop_date = 20250515
+sub_stack_stop_date = 20250514
 suffix = "_sl04"                       # optionnal- suffix for output stacks, leave blank for no suffix
 
 
