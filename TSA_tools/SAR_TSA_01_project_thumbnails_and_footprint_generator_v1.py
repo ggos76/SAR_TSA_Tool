@@ -9,24 +9,24 @@
 #  Part 1: User defined variables
 # -----------------------------------------------------------------------------------------------------------------
 #A) Input parameters
-parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7158_4495_CP05_A"
+parent_folder_search = r"D:\RCMP_data_RCM\BC_03m"
 keyword = "manifest.safe"
 unzip_files_first = "yes"                     # Valid options are "yes" or "no"
 
 # B) Ortho options -  Use a coarse resolution to produce resonably sized thumbnails
 Ortho_resolution_X = "25"
 Ortho_resolution_Y = "25"
-DEM_file = r"D:\RCMP_prj_overviews\aux_files\QC\DEM\Glo30DEM_CanUS_LatLong.tif"
+DEM_file = r"D:\RCMP_prj_overviews\aux_files\BC\DEM\BC_Glo30DEM_LatLong_D000.tif"
 Elevation_channel = 1
 
 #C) Output options
 filename_output_format = 5           # Valid options are 1,2,3,4,5
-prefix = "QC03m_"                    # Optional. Leave blank "" for no prefix.
+prefix = "BC03m_"                    # Optional. Leave blank "" for no prefix.
 Add_long_lat_suffix = "yes"          # Valid options are "yes" or "no" 
 date_format = "unique"               # Valid options are "compact" or "unique"   
 
 output_options = 2   
-output_folder = r"E:\test_for_footprint"
+output_folder = r"E:\RCMP_BC_projet_overview"
 
 # Behaviour when output file exists 
 if_file_exists = "regenerate"     # Valid options are "skip" or "regenerate"

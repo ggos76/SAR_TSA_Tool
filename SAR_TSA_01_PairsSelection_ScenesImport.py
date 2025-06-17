@@ -7,7 +7,7 @@
 #  User defined variables
 # ----------------------------------------------------------------------------------------------
 # The Input scenes can be retrieved from an input folder or an mfile (*.txt)
-parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7158_4495_CP05_A"
+parent_folder_search = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7224_4504_CP01_A"
 keyword = "manifest.safe"
 unzip_files_first = "yes"           # Valid options are "yes" or "no"
 
@@ -17,8 +17,8 @@ sentinel_swath = 3
 
 # Outputs
 # Specify a prefix for the outputs - suggest ending it with '_' (optional)
-prefix = "t25_"
-output_folder = r"E:\test_25"
+prefix = "QC03M_7224_4504_CP01_A_"
+output_folder = r"E:\QC03M_7224_4504_CP01_A"
 
 # Elevation source
 DEM_file = r"D:\RCMP_border\aux_DEM\Glo30DEM_CanUS_LatLong.tif"
@@ -33,7 +33,7 @@ stop_date_YYYYMMDD = 20250418
 # InSAR pairs selection mode
 # 1: All pairs temporal             2: Single reference file
 # 3: With baseline filters (SBAS)   4: Subsequent pairs
-pairs_selection_mode = 3
+pairs_selection_mode = 4
 
 # Only used when pairs_selection_mode=2
 # Must be in the following format YYYYMMDD, for example   20190519
