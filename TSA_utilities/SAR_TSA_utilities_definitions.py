@@ -22,6 +22,8 @@ import numpy as np
 
 from pci.ortho import ortho
 from pci.pyramid import pyramid
+from pci.ras2poly import ras2poly
+from pci.reproj import reproj
 from pci.exceptions import PCIException
 from pci.api import datasource as ds
 from pci.api.cts import crs_to_mapunits
@@ -33,6 +35,8 @@ from pci.model import model
 from pci import nspio
 
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 def nan_replace(step_nans, input_folder_nans):
 
@@ -75,9 +79,12 @@ def nan_replace(step_nans, input_folder_nans):
     nspio.enableDefaultReport('term')
     return ()
 
-#----------------------------------------------------------------------------------------------------------------------------
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#------------------------------------------------------------------------------------------------------------------
 # Orthorectification
-#----------------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------
 def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevation_channel, ortho_bounds_option, 
                AOI_file, AOI_file_segment_number, ortho_resolution_X, ortho_resolution_Y, generate_overviews, 
                TSA_math_xtra_channels, if_file_exists, info_message_skip, info_message_regn, delete_intermediary_files):
@@ -230,6 +237,9 @@ def ortho_run (input_folder_for_ortho, output_folder_ortho, DEM_file, DEM_elevat
     nspio.enableDefaultReport('term')
     return ()
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #----------------------------------------------------------------------------------------------------------------------------
 # Conversion from complex to intensity data
 #----------------------------------------------------------------------------------------------------------------------------
@@ -379,6 +389,8 @@ def psiqinterp_run (search_folder, keyword, interp_type, suffix, TSA_layers, TSA
 
     return()
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_channels, TSA_channel_labels):
@@ -573,10 +585,9 @@ def create_list (prefix, suffix, search_folder, Fld_Output_stack_lists, TSA_chan
 def file_size_check (files_list):
 
     # Safety check, File size and projection verifications. All files must have the same number of lines and
-    # columns and the same projection
-
-    # -------------------------------------------------------------------------------------------------------
-    # using the first file of the list as a reference.
+    # columns. 
+    
+    # Using the first file of the list as a reference.
     with ds.open_dataset(files_list[0], ds.eAM_READ) as ds1:
         reference_width = ds1.width         # Number of columns
         reference_height = ds1.height       # Number of row
@@ -621,7 +632,6 @@ def file_size_check (files_list):
 
 def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value, output_folder):
 
-    
     # First we create the EASI model that will be use for all the input_files. 
     output_model_file = []
     chan = '%1'
@@ -688,7 +698,10 @@ def stack_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_va
         count = count + 1
     #os.remove(file_model)
     return ()
-# ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 def stack_min_max (input_stack, no_data_value, min_floor, max_floor, reassign_type):
 
@@ -761,7 +774,6 @@ def stack_min_max (input_stack, no_data_value, min_floor, max_floor, reassign_ty
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 def stack_chans_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value):
 
     output_folder = os.path.dirname(input_stack)
@@ -789,37 +801,49 @@ def stack_chans_masking (input_stack, mask_type, mask_file, mask_seg_number,no_d
         for ii in range (1,chans+1,1): 
             chans_list.append(ii)
 
-    
-    if mask_type == "exclusion":
-    
+
         count = 1
         for in_chan in chans_list:
             aa = ("   masking channel " + str(count) + " of " + str(len(chans_list)))
             sys.stdout.write("\r" + aa)
             sys.stdout.flush()
 
-            model_canusa_exclusion = os.path.join(output_folder, "Canusa_exclusion_temp.txt")
+            model_chans_mask = os.path.join(output_folder, "stack_chans_temp_model.txt")
             model_lines = []
-            string_1 = "if %%" + str(last_bitmap) + " = 0 then"
+            
+            string_1 = "if %%" + str(last_bitmap) + " = 1 then"  # Bitmap is on
             model_lines.append(string_1)
-            string_1 = "%" + str(in_chan) + " = " + str(no_data_value)
-            model_lines.append(string_1)
+
+            if mask_type == "inclusion": 
+                string_1 = "%" + str(in_chan) + " = " + "%" + str(in_chan)
+                model_lines.append(string_1)
+                string_1 = "else"
+                model_lines.append(string_1)
+                string_1 = "%" + str(in_chan) + " = " + str(no_data_value)
+                model_lines.append(string_1)
+            
+            if mask_type == "exclusion":    
+                string_1 = "%" + str(in_chan) + " = " +  str(no_data_value)
+                model_lines.append(string_1)
+                string_1 = "else"
+                model_lines.append(string_1)
+                string_1 = "%" + str(in_chan) + " = " + "%" + str(in_chan)
+                model_lines.append(string_1)
+
             string_1 = "endif"
             model_lines.append(string_1)
 
-            with open(model_canusa_exclusion, "w") as f:
+            with open(model_chans_mask, "w") as f:
                 f.write("\n".join(model_lines))
 
             file = input_stack
-            source = model_canusa_exclusion
+            source = model_chans_mask
             undefval = []
             model(file, source, undefval)
         
-            count = count + 1    
-         
-    print("\t")   
-    return()        
+            count = count + 1  
 
+    return()        
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -959,4 +983,108 @@ def unzip_batch (parent_folder_search, fld_unzip, if_file_exists, info_message_r
     
     return ()
     
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+
+def ortho_raster_footprint (prefix, input_raster, output_folder): 
+
+    # this function will output two vector files
+    # 1) footprint in the input_rater native projection
+    # 2) footprint in LatLong WGS84
+
+    with ds.open_dataset(input_raster, ds.eAM_READ) as ds1:
+        raster_MapProjection = crs_to_mapunits(ds1.crs)
+
+    raster_projection = raster_MapProjection.strip()
+    raster_projection = raster_projection.replace(" ","")
+   
+
+    #1) We export the first channel of the input stack to create a template for the footprints
+    print (time.strftime("%H:%M:%S") + "  Exporting the template to create the stack footprint")
+    fili = input_raster
+    filo = os.path.join(output_folder, prefix + "footprint_template.pix")
+    dbiw = []
+    dbic = [1]
+    dbib = []
+    dbvs =[]
+    dblut =	[]
+    dbpct =	[]
+    ftype =	"pix"
+    foptions = ""
+    try:
+        fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
+    except PCIException as e:
+        print (e)
+    except Exception as e:
+        print (e)
+    
+    stack_template = filo
+    
+    #2) Setting the first channel to an arbitrary value (100) for the Raster to vector convertion
+    file = filo
+    source = "%1 = 100"
+    undefval = []
+    
+    try:
+        model(file, source, undefval)
+    except PCIException as e:
+        print (e)
+    except Exception as e:
+        print (e)
+
+    #3) Creating the stack vector footprint
+    print (time.strftime("%H:%M:%S") + "  Creating the stacks vector footprint")
+    fili = filo
+    dbic = [1]
+    filo = os.path.join(output_folder, prefix + "stack_footprint_" + raster_projection + ".pix")
+    smoothv = "no"
+    dbsd = "footprint"
+    ftype = "pix"
+    foptions = ""
+
+    try:
+        ras2poly (fili, dbic, filo, smoothv, dbsd, ftype, foptions)
+    except PCIException as e:
+        print (e)
+    except Exception as e:
+        print (e)
+    
+    stack_footprint_utm = filo
+
+    #4) Reprojecting the foorptint to LatLong WGS84
+    print (time.strftime("%H:%M:%S") + "  Reprojecting the vector footprint to LatLong WSG84")
+    fili = stack_footprint_utm
+    dbic = [] 
+    dbsl = [2]
+    sltype = ""
+    filo = os.path.join(output_folder, prefix + "stack_footprint_LatLong_WGS84.pix")   
+    ftype   =   ""  # uses PIX format by default
+    foptions    =   ""  # no file options are used
+    repmeth =   "BR"  # uses bounds and resolution method
+    dbsz    =   []  # not used for BR method
+    pxsz    =   []  # uses 25 meters resolution
+    maxbnds =   "YES"    # uses maximum bounds
+    mapunits = "LONG/LAT D000"
+    llbounds    =   "NO"
+    ulx =   ""
+    uly =   ""
+    lrx =   ""
+    lry =   ""
+    resample = ""  # uses CUBIC resample
+    proc =   ""  # uses AUTO by default
+    tipostrn = "" # uses CORNER tile positioning transformation with 10 meter stride
+
+    try:
+        reproj( fili, dbic, dbsl, sltype, filo, ftype, foptions, repmeth, dbsz, pxsz, maxbnds,\
+        mapunits, llbounds, ulx, uly, lrx, lry, resample, proc, tipostrn )
+    except PCIException as e:
+        print (e)
+    except Exception as e:
+        print (e)
+     
+    stack_footprint_LatLong = filo    
+        
+    return stack_template, stack_footprint_utm, stack_footprint_LatLong
+
     
