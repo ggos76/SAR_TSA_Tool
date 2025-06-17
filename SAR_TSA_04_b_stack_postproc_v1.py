@@ -1,35 +1,37 @@
 #!/usr/bin/env python
 '''----------------------------------------------------------------------
  * Gabriel Gosselin, CCRS. May 2025                                      -
- * ----------------------------------------------------------------------
+ * -------------------
+ ---------------------------------------------------
 '''
 
 # ----------------------------------------------------------------------------------------------
 #  Part 1: User defined variables
 # ----------------------------------------------------------------------------------------------
 # A) Input Files
-TSA_stacks_folder = r"E:\QC03M_7158_4495_CP05_A\7_TSA_stacks"
+TSA_stacks_folder = r"E:\QC03M_7224_4504_CP01_A\7_TSA_stacks"
 no_data_value = -32768.0000
-prefix = "QC03M_7158_4495_CP05_A_"                              # leave blank if no prefix is needed
+prefix = "QC03M_7224_4504_CP01_A_"                              # leave blank if no prefix is needed
 
 # B) spatial subset option # Accepted values are "yes" or "no"
 subset_input_data = "yes"
-AOI_vector_file = r"D:\test_subset_LatLong_D000.pix"     # mandatory when subset_input_data = "yes"
+AOI_vector_file = r"D:\RCMP_data_RCM\QC_03m\stacks\QC03M_7224_4504_CP01_A\AOI\AOI_QC03m_7224_4504_CP01_A_final_crop_tight_UTM18TD000.pix"    # mandatory when subset_input_data = "yes"
 AOI_segment_number = 2
 
 # C) Apply masking
 # C.1) DEM file for slope calculation.
-apply_slope_mask = "yes"
-DEM_file = r"D:\RCMP_prj_overviews\aux_files\QC\DEM\Glo30DEM_CanUS_LatLong.tif"
+apply_slope_mask = "no"
+DEM_file = r"D:\RCMP_data_aux\QC_prj\DEM\QC_Glo30DEM_LatLong.tif"
 DEM_elevation_channel = 1
 slope_max = 15.0                # Slopes above slope_max will be masked.
 
 # C.2) CANUSA border buffer masking - area outise the buffer will be masked
-apply_canusa_border_mask = "yes"
-canusa_border_file = r"D:\share_GG\CanUS_border_1m_UTM19T_D000_v4_2km_buffer.pix"
+apply_canusa_border_mask = "no"
+canusa_border_file = r"D:\RCMP_data_aux\CANUSA_border_LatLongWGS84_buffer_2km.pix"
 
 # C.3) Other exclusion masks
-# TBC
+apply_water_mask = "yes"
+water_mask_file = r"D:\RCMP_data_aux\QC_prj\Land_Cover\QC_20231004_Landsat\2023_LandCover_water_UTM19TD000.pix"  # This is a vector file with a single segment
 
 #D) Other options
 # Generate overviews - either yes or no,
@@ -44,7 +46,7 @@ if_file_exists = "skip"     # Valid options are "skip" or "regenerate"
 # -----------------------------------------------------------------------------------------------------
 '''
 All input stack must: 
- 1) Corrsponds to the same geographical region: 
+ 1) Corresponds to the same geographical region: 
  2) have the same pojection
  3) have the same number of lines and columns
 
@@ -78,6 +80,7 @@ from pci.exceptions import PCIException
 from pci.api import datasource as ds
 
 from TSA_utilities.SAR_TSA_utilities_definitions import file_size_check
+from TSA_utilities.SAR_TSA_utilities_definitions import ortho_raster_footprint
 from TSA_utilities.SAR_TSA_utilities_definitions import stack_chans_masking
 from TSA_utilities.SAR_TSA_utilities_definitions import get_folder_proctime_and_size
 from TSA_utilities.SAR_TSA_version_control import version_control
@@ -155,6 +158,18 @@ else:
 
 # C.3) Other exclusion masks
 # TBC
+if apply_water_mask not in yes_no_validation_list:
+    print("Error - The specified subset option is invalid")
+    print('Accepted values are: "yes" or "no"')
+    sys.exit()
+elif apply_water_mask in yes_validation_list:
+    apply_water_mask = True
+
+    if not os.path.exists(water_mask_file):
+        print ("Error - The water_mask_file does not exist or the path/filename is wrong")
+        sys.exit()
+else: 
+    apply_water_mask = False
 
 # D) Other options
 generate_overviews = generate_overviews.lower()
@@ -193,7 +208,6 @@ if not os.path.exists(Fld_output_stacks):
 
 
 # All validations have suceeded, a time log file is open.
-prefix= ""
 out_folder_script4 = one_up
 script4_procTime = os.path.join(out_folder_script4, prefix + "TSA_part_04_b_stack_data_postproc_processingTime.txt")
 time_log = open(script4_procTime, "w")
@@ -227,7 +241,20 @@ for ii in input_stack_files:
     print ("   " + ii)
 
 
-# B) Checking for files size (columns and lines)
+# B) Extra verification to be sure the input stack are in a projection with meters units (i.e. Not LatLong) 
+
+for ii in input_stack_files: 
+    with ds.open_dataset(ii, ds.eAM_READ) as ds5:
+        raster_MapProjection = crs_to_mapunits(ds5.crs)
+
+raster_MapProjection2 = raster_MapProjection.lower().replace(" ","")
+prj_check =  ["utm", "lcc"]
+found = any (s in raster_MapProjection2 for s in prj_check)
+if not found:
+    print("no match found")
+    sys.exit()
+
+# C) Checking for files size (columns and lines)
 print ("\t")
 print("Files size verification")
 files_list = input_stack_files
@@ -236,12 +263,10 @@ file_size_check (files_list)
 string_1 = ("   " + time.strftime("%H:%M:%S") + " input files size verification")
 time_log.write("%s\n" % string_1)
     
-
 proc_stop_time = time.time()
 
 # -----------------------------------------------------------------------------------------------------------------
 # C) Subsetting the input data
-
 # It is not mandatory to have the subset vector file in the same projection as the input data but it is 
 # recommended. The same input file subsetted twice with the same subset vector but in different projections may 
 # yield slighly differet output file size (lines x columns) 
@@ -304,139 +329,55 @@ if subset_input_data is True:
                 print (e)
             except Exception as e:
                 print (e)
-            count = count + 1
+        count = count + 1
     
+    # We now use the subsetted version of the input stacks.
+    prefix = "s" + prefix  
     input_stack_files = output_files_sub
+
 
 #---------------------------------------------------------------------------------------------------------------------
 #---------------------------------------------------------------------------------------------------------------------
+# D ) Creating footprints for the input stacks
+print ("\t")
+print('----------------------------------------------------------------------------------------------------------')
+print('                             Creating vector footprints for the input stacks                              ')
+print('----------------------------------------------------------------------------------------------------------')
+print ("\t")
+
+# Create the stack vector footprints (original projection and LatLong WGS84)
+
+input_raster = input_stack_files[0]
+output_folder = Fld_output_stacks
+
+stack_template, stack_footprint_utm, stack_footprint_LatLong = ortho_raster_footprint (prefix, input_raster, output_folder)
+
+print (stack_template)
+print (stack_footprint_utm)
+print (stack_footprint_LatLong)
 
 if apply_slope_mask is True:
     print ("\t")
     print('----------------------------------------------------------------------------------------------------------')
-    print('                 calculation of terrain derivatives for steep slopes masking                              ')
+    print('                 Calculation of terrain derivatives for steep slopes masking                              ')
     print('----------------------------------------------------------------------------------------------------------')
     print ("\t")
 
-    # DEM preparation. It is assumed that the inout DEM is in LatLong projection and much larger than the input stacks.
-    # Processing sequence: 
-    #   1) Export the first channel of the first stack to get a template. 
-    #   2) Create a footprint of DEM template 
 
-    # We will subset the DEM to the extents of the input stacks file. We expect the DEM to 
-    print (time.strftime("%H:%M:%S") + "  Creating an empty file to receive the DEM subset")
-    fili = input_stack_files[0]
-    filo = os.path.join(Fld_output_stacks, prefix + "DEM_template.pix")
-    dbiw = []
-    dbic = [1]
-    dbib = []
-    dbvs =[]
-    dblut =	[]
-    dbpct =	[]
-    ftype =	"pix"
-    foptions = ""
-    try:
-        fexport( fili, filo, dbiw, dbic, dbib, dbvs, dblut, dbpct, ftype, foptions )
-        intermediary_files_list.append(filo)
-    except PCIException as e:
-        print (e)
-    except Exception as e:
-        print (e)
-    # Setting the first channel to an arbitrary value (100) for the Raster to vector convertion
-    file = filo
-    source = "%1 = 100"
-    undefval = []
-    
-    try:
-        model(file, source, undefval)
-    except PCIException as e:
-        print (e)
-    except Exception as e:
-        print (e)
-
-    # -----------------------------------------------------------------------
-    print (time.strftime("%H:%M:%S") + "  Creating the stack vector footprint")
-    fili = filo
-    dbic = [1]
-    filo = os.path.join(Fld_output_stacks, prefix + "DEM_stack_footprint.pix")
-    smoothv = "no"
-    dbsd = "footprint"
-    ftype = "pix"
-    foptions = ""
-
-    try:
-        ras2poly(fili, dbic, filo, smoothv, dbsd, ftype, foptions)
-        intermediary_files_list.append(filo)
-    except PCIException as e:
-        print (e)
-    except Exception as e:
-        print (e)
-    out_vec_footprint = filo
-    # -----------------------------------------------------------------------
-    # -----------------------------------------------------------------------
-    print ("\t")
-    with ds.open_dataset(DEM_file, ds.eAM_READ) as ds2:
-        dem_MapProjection = crs_to_mapunits(ds2.crs)
-
-    with ds.open_dataset(out_vec_footprint, ds.eAM_READ) as ds3:
-        out_vec_footprint_MapProjection = crs_to_mapunits(ds3.crs)
-
-    if dem_MapProjection != out_vec_footprint_MapProjection: 
-        print (time.strftime("%H:%M:%S") + "   Reprojecting the stack footprint to the projection of the DEM")
-      
-        print ("DEM projection: " + dem_MapProjection)
-        print ("DEM_stack_footprint: " + out_vec_footprint)
-        print ("Need to reproject")
-
-        fili = out_vec_footprint
-        dbic = [] 
-        dbsl = [2]
-        sltype = ""
-
-        base = os.path.basename(out_vec_footprint[:-4])
-       
-        filo = os.path.join(Fld_output_stacks, base + "_reproj.pix")   
-        ftype   =   ""  # uses PIX format by default
-        foptions    =   ""  # no file options are used
-        repmeth =   "BR"  # uses bounds and resolution method
-        dbsz    =   []  # not used for BR method
-        pxsz    =   []  # uses 25 meters resolution
-        maxbnds =   "YES"    # uses maximum bounds
-        mapunits = dem_MapProjection
-        llbounds    =   "NO"
-        ulx =   ""
-        uly =   ""
-        lrx =   ""
-        lry =   ""
-        resample = ""  # uses CUBIC resample
-        proc =   ""  # uses AUTO by default
-        tipostrn = "" # uses CORNER tile positioning transformation with 10 meter stride
-
-        try:
-            reproj( fili, dbic, dbsl, sltype, filo, ftype, foptions, repmeth, dbsz, pxsz, maxbnds,\
-            mapunits, llbounds, ulx, uly, lrx, lry, resample, proc, tipostrn )
-            intermediary_files_list.append(filo)
-        except PCIException as e:
-            print (e)
-        except Exception as e:
-            print (e)
-        out_vec_footprint = filo 
-    # -----------------------------------------------------------------------
-    # -----------------------------------------------------------------------
-    # Create a subset of the DEM
-    print (time.strftime("%H:%M:%S") + " Subsetting the DEM using the stack footprint")
+    # Create a subset of the DEM in LatLong 
+    print (time.strftime("%H:%M:%S") + " Subsetting the input DEM using the stack footprint in LatLong")
     
     fili = DEM_file
     dbic = [1]
     dbsl = []
     sltype = ""
 
-    filo = os.path.join(Fld_output_stacks, "DEM_for_terrain_derivatives.pix")
+    filo = os.path.join(Fld_output_stacks, prefix + "DEM_for_terrain_derivatives_LatLong.pix")
     out_dem_terrain_derivatives = filo
     ftype = "PIX"
     foptions = ""
     clipmeth = "LAYERVEC"
-    clipfil = out_vec_footprint
+    clipfil = stack_footprint_LatLong
     cliplay = [2]
     laybnds = "extents"
     coordtyp = ""
@@ -455,69 +396,62 @@ if apply_slope_mask is True:
         print (e)
     except Exception as e:
         print (e)
-    # -----------------------------------------------------------------------
-    # -----------------------------------------------------------------------
-
-    if dem_MapProjection != out_vec_footprint_MapProjection: 
-        print (time.strftime("%H:%M:%S") + " Reprojecting the subsetted DEM to the stack projection")
+    
+    print (time.strftime("%H:%M:%S") + " Reprojecting the subsetted DEM to the stack projection")
  
-        fili = out_dem_terrain_derivatives
-        dbic = [1] 
-        dbsl = []
-        sltype = ""
+    fili = out_dem_terrain_derivatives
+    dbic = [1] 
+    dbsl = []
+    sltype = ""
+    out_proj = raster_MapProjection.replace(" ", "")
+    filo = os.path.join (Fld_output_stacks, prefix + "DEM_for_terrain_derivatives_" + out_proj + ".pix")
+    ftype   =   ""  # uses PIX format by default
+    foptions    =   ""  # no file options are used
+    repmeth =   "BR"  # uses bounds and resolution method
+    dbsz    =   []  # not used for BR method
+    pxsz    =   [30, 30]  
+    maxbnds =   "YES"    
+    mapunits = raster_MapProjection
+    llbounds    =   "NO"
+    ulx =   ""
+    uly =   ""
+    lrx =   ""
+    lry =   ""
+    resample = ""  
+    proc =   ""  # uses AUTO by default
+    tipostrn = "" # uses CORNER tile positioning transformation with 10 meter stride
 
-        base = os.path.basename(out_dem_terrain_derivatives [:-4])
-       
-        filo = os.path.join(Fld_output_stacks, base + "_reproj.pix")   
-        ftype   =   ""  # uses PIX format by default
-        foptions    =   ""  # no file options are used
-        repmeth =   "BR"  # uses bounds and resolution method
-        dbsz    =   []  # not used for BR method
-        pxsz    =   [30, 30]  
-        maxbnds =   "YES"    
-        mapunits = out_vec_footprint_MapProjection
-        llbounds    =   "NO"
-        ulx =   ""
-        uly =   ""
-        lrx =   ""
-        lry =   ""
-        resample = ""  
-        proc =   ""  # uses AUTO by default
-        tipostrn = "" # uses CORNER tile positioning transformation with 10 meter stride
+    try: 
+        reproj( fili, dbic, dbsl, sltype, filo, ftype, foptions, repmeth, dbsz, pxsz, maxbnds,\
+            mapunits, llbounds, ulx, uly, lrx, lry, resample, proc, tipostrn )
+        intermediary_files_list.append(filo)
+    except PCIException as e:
+        print (e)
+    except Exception as e:
+        print (e)
 
-        try: 
-            reproj( fili, dbic, dbsl, sltype, filo, ftype, foptions, repmeth, dbsz, pxsz, maxbnds,\
-                mapunits, llbounds, ulx, uly, lrx, lry, resample, proc, tipostrn )
-            intermediary_files_list.append(filo)
-        except PCIException as e:
-            print (e)
-        except Exception as e:
-            print (e)
+    #------------------------------------------------------------------------------------------
+    # Creating a model on the fly to remove the 0 values on the subsetted DEM edges due 
+    # to UTM - LantLong reprojection(s) and to avoid artifical high slopes on the edges.  
+    model_set_nodata = os.path.join(Fld_output_stacks, "DEM_model_set_nodata.txt")
+    model_lines = []
+    string_mod = "if %1<=0 then"
+    model_lines.append(string_mod)
+    string_mod = "%1 = " + str(no_data_value)
+    model_lines.append(string_mod)
+    string_mod = "endif"
+    model_lines.append(string_mod)
+    with open(model_set_nodata, "w") as f:
+        f.write("\n".join(model_lines))
 
-        #-----------------------------------------------------------------------
-        # Creating a model on the fly to remove the 0 values on the subsetted DEM edges due 
-        # to UTM - LantLong reprojection(s) and to avoid artifical high slopes.  
-        model_set_nodata = os.path.join(Fld_output_stacks, "DEM_model_set_nodata.txt")
-        model_lines = []
-        string_mod = "if %1<=0 then"
-        model_lines.append(string_mod)
-        string_mod = "%1 = " + str(no_data_value)
-        model_lines.append(string_mod)
-        string_mod = "endif"
-        model_lines.append(string_mod)
-        with open(model_set_nodata, "w") as f:
-            f.write("\n".join(model_lines))
+    file = filo
+    source = model_set_nodata
+    undefval = []
+    model(file, source, undefval)
+  
+    out_dem_terrain_derivatives = filo
 
-        file = filo
-        source = model_set_nodata
-        undefval = []
-        model(file, source, undefval)
-        #--------------------------------------------------------------------
-        
-        out_dem_terrain_derivatives = filo
-
-    # -----------------------------------------------------------------------
-    # -----------------------------------------------------------------------
+    #------------------------------------------------------------------------------------------
     # We create the terrain derivatives for the subsetted (and reprojected) DEM file.
     # Add two 32R channels to receive the slopes and aspects layers.
     print (time.strftime("%H:%M:%S") + " Calculating the terrain derivatives (slope, aspect)")
@@ -543,8 +477,8 @@ if apply_slope_mask is True:
         print (e)
     except Exception as e:
         print (e)
-   # -----------------------------------------------------------------------
-   # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
     print (time.strftime("%H:%M:%S") + " Creating the exclusion mask for the steep slopes") 
 
     file = filo
@@ -563,7 +497,7 @@ if apply_slope_mask is True:
     except Exception as e:
         print (e)
 
-    print (time.strftime("%H:%M:%S") + " Converting the steep slopes msk to a vector file") 
+    print (time.strftime("%H:%M:%S") + " Converting the steep slopes mask to a vector file") 
     fili = file 
     dbib = [2]                            
     filo = os.path.join(Fld_output_stacks, prefix + "steep_slopes_mask_" + str(slope_max) + ".pix")  
@@ -612,8 +546,31 @@ if apply_canusa_border_mask is True:
         print (time.strftime("%H:%M:%S") + " Masking stack " + str(count) + " of " + nb_files)
         print ("   input stack --> " + input_stack )    
        
-        mask_type = "exclusion"  
+        mask_type = "inclusion"  
         mask_file = canusa_border_file
+        mask_seg_number = [2]
+
+        stack_chans_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value)
+        
+        count = count + 1
+
+if apply_water_mask is True:
+    print ("\t")
+    print('----------------------------------------------------------------------------------------------------------')
+    print('                                     Masking the waterbodies                                              ')
+    print('----------------------------------------------------------------------------------------------------------')
+    print ("\t")
+    
+    # projection check and automatic reprojection here?
+    nb_files = str(len(input_stack_files))
+    count = 1
+    for input_stack in input_stack_files: 
+        print("\t") 
+        print (time.strftime("%H:%M:%S") + " Masking stack " + str(count) + " of " + nb_files)
+        print ("   input stack --> " + input_stack )    
+       
+        mask_type = "exclusion"  
+        mask_file = water_mask_file
         mask_seg_number = [2]
 
         stack_chans_masking (input_stack, mask_type, mask_file, mask_seg_number,no_data_value)
